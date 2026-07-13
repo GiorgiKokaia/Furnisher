@@ -64,11 +64,14 @@ want a smaller one?") — `LayoutIssue` messages are written for exactly this.
 
 ## Tasks
 
-- [ ] Orchestrator class: owns Project, wires 03–07, exposes `handle_message()`, `handle_command()`
-- [ ] CLI REPL (stage 1) with the commands above
-- [ ] Staleness tracking (which room images are outdated after which mutations)
-- [ ] Scripted end-to-end test: fixture plan + canned agent responses → furnished project
-- [ ] (M5) FastAPI app + page
+- [x] Orchestrator class: owns Project, wires 03–07, `handle_message()` (structured result:
+      reply / options / placed), progress callback, pending-options state
+- [x] CLI REPL (stage 1): /inspire /inspire-ikea /budget /plan /items /room /undo; numbered
+      option picking
+- [x] Scripted end-to-end tests: fixture plan + FakeLLM → options → choose → furnished project
+- [x] (M5) FastAPI app + page (v2: streaming, option cards, drag+snap, apartment view)
+- [ ] Staleness tracking: room-image caching self-invalidates via content hash, but outdated
+      images linger in the gallery — mark or prune them
 
 ## Open questions
 

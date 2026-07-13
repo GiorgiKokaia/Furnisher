@@ -1,6 +1,7 @@
 # 06 — 2D Floor Plan Renderer
 
-**Status:** empty-plan mode built (`src/furnisher/render2d/`); furnished + room-crop modes pending
+**Status:** all three modes built (`src/furnisher/render2d/`) — empty plan, furnished
+(category tints, smart labels, data-pid for the web app), room-crop grounding render
 **Depends on:** 01 (schema), 03 (item names for labels)
 **Code home:** `src/furnisher/render2d/`
 
@@ -46,11 +47,12 @@ def render_room(plan, room_id, placements, catalog, style) -> str
       (`render_plan(plan, placements=..., catalog=...)`)
 - [x] Room-crop mode (`render2d/room_crop.py`): numbered footprints biggest-first, front
       ticks, door/window labels with wall names, camera marker; returns (svg, legend, camera)
-- [ ] PNG export
+- [x] PNG export (`render3d/recipe.py::svg_to_png` via resvg-py; used for image grounding)
 - [ ] Golden-file tests (compare SVG output against checked-in fixtures; on mismatch write the
       new file next to the golden one for eyeballing)
 
 ## Open questions
 
-- North arrow / real-world orientation for lighting hints in 07? Add `north_deg` to the schema
-  (01) if room renders benefit from knowing window light direction. Decide during M4.
+- North arrow / real-world orientation for lighting hints in 07? Add `north_deg` to the
+  schema (01) if room renders benefit from knowing window light direction. (M4 shipped
+  without it; still open.)

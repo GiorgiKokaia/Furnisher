@@ -47,10 +47,11 @@ class Project:
 
 ## Tasks
 
-- [ ] `Project` class with atomic save, load-with-validation (clear errors on schema drift)
-- [ ] Snapshot/undo + pruning
-- [ ] `furnisher project new <dir>` scaffolding CLI
-- [ ] Schema-version field + a "migrations" stub (just a version check that fails loudly for now)
+- [x] `Project` class with atomic save (tmp + os.replace), load-with-validation
+- [x] Snapshot/undo + pruning (cap 100)
+- [x] `furnisher project new <dir> --plan <yaml>` scaffolding CLI
+- [ ] Schema-version field in project.json + a loud version check (plan.yaml has
+      schema_version; the project manifest doesn't yet)
 
 ## Open questions
 

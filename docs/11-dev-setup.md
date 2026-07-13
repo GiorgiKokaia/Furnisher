@@ -30,8 +30,9 @@ experiments/    # gitignored scratch (esp. room-render iterations, 07)
 
 ## Core dependencies (add as needed, not all up front)
 
-`pydantic`, `shapely`, `httpx`, `pyyaml`, `typer`, `watchfiles`, `google-genai`, `svgwrite`,
-`pillow`, `fastapi`+`uvicorn` (M5), `pytest`.
+`pydantic`, `shapely`, `httpx`, `pyyaml`, `typer`, `watchfiles`, `google-genai`, `resvg-py`
+(SVG→PNG; chosen over cairosvg — no native cairo needed on Windows), `fastapi`+`uvicorn`,
+`pytest`. (`svgwrite`/`pillow` turned out unnecessary — SVG is hand-rolled strings.)
 
 ## Configuration & secrets
 

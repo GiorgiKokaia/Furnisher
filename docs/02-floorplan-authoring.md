@@ -71,12 +71,16 @@ plan → rooms, via an ML model or the design agent itself with vision. Park it.
 - [x] YAML ↔ schema loader with the `rect` / `offset_frac` sugar (`authoring/loader.py`)
 - [x] `furnisher plan validate` CLI (typer)
 - [x] `furnisher plan preview` with `watchfiles` live re-render (`--watch`)
-- [ ] Author one *real* apartment (the user's) as the canonical test plan
+- [x] Author one *real* apartment (the user's) as the canonical test plan
+      (`my-apartment.yaml`, drawn in the GUI editor)
 - [x] FastAPI editor (`plan edit`): canvas drawing, opening placement, sidebar props,
       auto-`connects`, save/validate/preview — verified end-to-end with Playwright
-- [ ] Editor niceties when needed: vertex add/remove for non-rect rooms, undo, overlap warnings
+- [x] Editor niceties: Ctrl+Z undo stack, arrow-key nudge, grid-size + snap toggle,
+      overlap rejection on placement
+- [ ] Editor niceties still open: vertex add/remove for non-rect rooms
 
 ## Open questions
 
-- Does phase 2 editor also handle furniture placement adjustment? Leaning yes — same canvas,
-  different layer (coordinates with 05/08). Decide at M5.
+- ~~Does phase 2 editor also handle furniture placement adjustment?~~ **Answered:**
+  placement adjustment lives in the *web app* (08: drag with wall snap, nudge/rotate/
+  delete toolbar), not in the plan editor — the plan editor stays about architecture.

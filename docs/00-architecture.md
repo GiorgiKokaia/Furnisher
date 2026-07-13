@@ -1,6 +1,7 @@
 # 00 — Architecture Overview
 
-**Status:** planning
+**Status:** M0–M5 complete (2026-07-13); this doc is the living overview — per-component
+status lives in each component doc
 **Source:** `big_picture.txt`
 
 ## Goal
@@ -95,8 +96,8 @@ Stretch goal: 2D→3D.
   check deliberately deferred to M3.)
 - ~~**M3 — The agent.**~~ **Done.** *Exit verified live: budget → "furnish the bedroom,
   scandinavian, cozy" → real items placed, 1492/1500 EUR tracked across two rooms.*
-  (Inspiration-image style extraction is wired via `/inspire` but not yet exercised with
-  real photos.)
+  Later extended: furnishing became two-step — the agent proposes 2-3 options, the user
+  picks (chat cards / typing the number). Style extraction verified live with real photos.
 - ~~**M4 — Room images.**~~ **Done.** *Exit verified live: bedroom render visibly contains the
   actual MALM bed, PAX wardrobe and MALM nightstand in planned positions; feedback re-roll
   keeps products while changing mood.*
@@ -111,4 +112,6 @@ Stretch goal: 2D→3D.
   constraint end-to-end: `SearchFilters.price_max` (03), agent tracks spend across rooms (04),
   `/budget` command (08).
 - Multi-floor apartments? (Schema should not preclude it; ignore until asked.)
-- Which concrete furniture providers ship to Georgia (republic)? Research at M1 with the user.
+- Which concrete furniture providers ship to Georgia (republic)? Still open — needs the
+  user's input on where they actually shop; the `CatalogProvider` protocol is the
+  checklist for evaluating candidates (03).

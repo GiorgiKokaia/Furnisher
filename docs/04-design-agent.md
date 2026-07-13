@@ -1,7 +1,10 @@
 # 04 — Design Agent
 
-**Status:** M3 built (`src/furnisher/agent/`, `src/furnisher/llm/`) — style extraction,
-grounded room proposals via catalog tool-calling, intent routing; verified live.
+**Status:** built + extended (`src/furnisher/agent/`, `src/furnisher/llm/`) — style
+extraction (from files and IKEA inspiration photos), intent routing, and **two-step
+furnishing**: `propose_options()` returns 2-3 labeled `RoomOptions` (grounding-filtered);
+nothing is placed until the user picks. Reports progress via an `on_progress` callback
+(each catalog search, option shaping) for streaming UIs. Verified live.
 Gotcha recorded in agent.py: no `from __future__ import annotations` in files defining
 google-genai tool functions (stringified annotations break automatic function calling).
 **Depends on:** 01 (reads plans), 03 (searches catalog), 05 (hands off placement)
@@ -28,13 +31,12 @@ the catalog, (c) plain-language suggestions/rationale for the user.
    [wood, metal, ...], style_tags: [scandinavian, ...], avoid: [...], budget_total?, notes }`.
    Runs once up front, re-runs when the user adds images; stored in the project file.
 
-2. **Furnishing proposal (per room)** — inputs: room (type, dimensions, openings), style profile,
-   conversation summary, budget remaining. The agent decides *what kinds* of items the room needs
-   ("queen bed, 2 nightstands, wardrobe ≤ 60cm deep"), calls **catalog search as a tool**
-   (function calling → `CatalogClient.search`), picks concrete items from real results, and
-   returns `RoomProposal { items: [{item_id, purpose, placement_hint}], rationale }`.
-   Placement hints are soft ("bed headboard against the wall without windows"); the layout engine
-   (05) owns actual coordinates.
+2. **Furnishing options (per room)** — inputs: room (type, dimensions, openings), style profile,
+   budget remaining. The agent decides *what kinds* of items the room needs, calls **catalog
+   search as a tool** (function calling → `Catalog.search`), picks concrete items from real
+   results, and returns 2-3 `RoomOption { label, items: [{item_id, purpose, hint, anchor}],
+   rationale }` sets for the user to choose between. Hints are coarse (`wall`/`center`/`free` +
+   an optional anchor purpose); the layout engine (05) owns actual coordinates.
 
 3. **Chat turn handler** — free-form conversation; classifies intent (adjust style / swap item /
    move item / question) and routes to re-running 1, 2, or emitting a layout-engine directive.
@@ -64,13 +66,15 @@ editable without touching code.
 
 ## Tasks
 
-- [ ] `furnisher/llm/` provider wrapper (Gemini impl; structured output + image inputs + tools)
-- [ ] Style extraction call + `StyleProfile` model + persistence in project file
-- [ ] Catalog search exposed as a Gemini function-calling tool
-- [ ] Room proposal call with grounding rules; validate returned item ids against cache
-- [ ] Chat-turn intent routing (with 08)
-- [ ] Eval fixtures: 2–3 inspiration-image sets + expected style tags (loose asserts); one
-      scripted "furnish my bedroom" conversation as an integration test (recorded/replayed)
+- [x] `furnisher/llm/` provider wrapper (Gemini: text / structured / auto function-calling /
+      image gen; retries on MALFORMED_FUNCTION_CALL)
+- [x] Style extraction call + `StyleProfile` model + persistence in project file
+- [x] Catalog search exposed as a Gemini function-calling tool (with progress reporting)
+- [x] Room options call with grounding rules; returned item ids validated against the catalog
+- [x] Chat-turn intent routing (with 08); digit shortcut picks a pending option
+- [x] Scripted "furnish the bedroom" conversations as integration tests (FakeLLM in
+      tests/test_orchestrator.py + test_webapp.py)
+- [ ] Eval fixtures for style extraction: inspiration-image sets + expected style tags
 
 ## Open questions
 

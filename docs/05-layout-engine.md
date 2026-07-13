@@ -1,7 +1,7 @@
 # 05 — Layout Engine
 
-**Status:** validation v0 built (`src/furnisher/layout/`); auto-placement + connectivity check
-pending (M3)
+**Status:** validation v0 + greedy `auto_place()` built (`src/furnisher/layout/`);
+free-space connectivity check still pending
 **Depends on:** 01 (geometry), 03 (item dimensions)
 **Code home:** `src/furnisher/layout/`
 

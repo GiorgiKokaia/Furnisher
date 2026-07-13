@@ -44,14 +44,19 @@ uv run furnisher furnish validate my-apartment.yaml examples/my-apartment.placem
 uv run furnisher furnish render   my-apartment.yaml examples/my-apartment.placements.json
 ```
 
-The design agent is live too (M3):
+The design agent and the web app are the main event:
 
 ```
 uv run furnisher project new my-place --plan my-apartment.yaml
-uv run furnisher chat my-place        # "set a budget of 1500", "furnish the bedroom, cozy"
+uv run furnisher app my-place                 # plan + chat side by side (start here)
+uv run furnisher chat my-place                # same brain, terminal REPL
 uv run furnisher render room my-place Sleep   # grounded photoreal room image (Nano Banana)
-uv run furnisher app my-place                 # the web app: plan + chat + photo gallery
 ```
+
+In the app: set a budget, pull IKEA inspiration photos (✨), ask for a room — the agent
+streams its progress, proposes 2-3 options as cards with product photos, and places the
+one you pick. Drag pieces to adjust (they snap to walls, every move is validated), use
+the 📷 buttons for photoreal room images and 🏠 for a whole-apartment cutaway view.
 
 Remaining: layout-quality iteration (the greedy solver is legal but not always elegant),
 more catalog providers (Georgia-reachable), free-space connectivity check, 2D->3D stretch
