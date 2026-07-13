@@ -146,6 +146,83 @@ def catalog_show(item_id: str = typer.Argument(..., help="e.g. generic:loft-sofa
     typer.echo(item.model_dump_json(indent=2, exclude={"raw"}))
 
 
+project_app = typer.Typer(help="Project directories.", no_args_is_help=True)
+app.add_typer(project_app, name="project")
+
+
+@project_app.command("new")
+def project_new(
+    directory: Path = typer.Argument(..., help="Project directory to create."),
+    plan: Path = typer.Option(..., "--plan", exists=True, help="Plan YAML to copy in."),
+    name: str | None = typer.Option(None, "--name"),
+) -> None:
+    """Create a project directory from a plan file."""
+    from furnisher.project import Project
+
+    try:
+        Project.create(directory, plan, name)
+    except (FileExistsError, ValueError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"created project at {directory}")
+
+
+@app.command("chat")
+def chat(project_dir: Path = typer.Argument(..., exists=True, file_okay=False)) -> None:
+    """Chat-driven furnishing (stage 1 REPL, docs/08)."""
+    from furnisher.app.orchestrator import Orchestrator
+    from furnisher.catalog import default_catalog
+    from furnisher.llm import GeminiLLM, LLMError
+    from furnisher.project import Project
+
+    try:
+        llm = GeminiLLM()
+    except LLMError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    orch = Orchestrator(Project.load(project_dir), default_catalog(), llm)
+    typer.echo(
+        f"project {orch.project.meta['name']!r} — rooms: "
+        f"{', '.join(r.id for r in orch.project.plan.rooms)}\n"
+        "commands: /inspire <image> [notes] /budget <n> /plan /items /undo /quit — "
+        "anything else is chat"
+    )
+    while True:
+        try:
+            message = input("you> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            break
+        if not message:
+            continue
+        if message.startswith("/"):
+            cmd, _, arg = message.partition(" ")
+            if cmd in ("/quit", "/exit"):
+                break
+            try:
+                if cmd == "/plan":
+                    typer.echo(f"agent> wrote {orch.render_svg()}")
+                elif cmd == "/items":
+                    typer.echo("agent>\n" + orch.shopping_list())
+                elif cmd == "/budget":
+                    typer.echo("agent> " + orch.set_budget(float(arg)))
+                elif cmd == "/undo":
+                    ok = orch.project.undo()
+                    orch.render_svg()
+                    typer.echo("agent> " + ("restored previous state" if ok else "nothing to undo"))
+                elif cmd == "/inspire":
+                    image_arg, _, notes = arg.partition(" ")
+                    typer.echo("agent> " + orch.add_inspiration(Path(image_arg), notes))
+                else:
+                    typer.echo(f"agent> unknown command {cmd}")
+            except Exception as exc:  # keep the REPL alive
+                typer.echo(f"agent> error: {exc}")
+            continue
+        try:
+            typer.echo("agent> " + orch.handle_message(message))
+        except Exception as exc:
+            typer.echo(f"agent> error: {exc}")
+
+
 def _load_placements(path: Path):
     import json
 

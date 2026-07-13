@@ -1,6 +1,6 @@
 # 09 — Persistence
 
-**Status:** not started
+**Status:** built (`src/furnisher/project/`) — project dirs, snapshots/undo, chat log
 **Depends on:** 01 (schema)
 **Code home:** `src/furnisher/project/`
 

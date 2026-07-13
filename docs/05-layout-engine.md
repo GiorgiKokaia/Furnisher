@@ -61,7 +61,8 @@ same scorer — *not* an ML model, not an ILP, until proven necessary.
 - [x] `validate()` with the v0 rule set + `LayoutIssue` (fit, overlap, swing/approach blocked,
       window obstruction, front clearances)
 - [x] Clearance data table (`layout/clearances.py`; chairs exempt — they tuck under tables)
-- [ ] `auto_place()` greedy v0 (M3)
+- [x] `auto_place()` greedy v0 (`layout/place.py`): wall/center/anchor candidates, scored;
+      output always validates clean; deterministic
 - [x] Tests: each rule produces its specific issue; clean layout produces none
 - [ ] Connectivity (erosion) check — trickiest bit, test it well (deferred; noted in validate.py)
 

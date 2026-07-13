@@ -1,6 +1,9 @@
 # 04 — Design Agent
 
-**Status:** not started
+**Status:** M3 built (`src/furnisher/agent/`, `src/furnisher/llm/`) — style extraction,
+grounded room proposals via catalog tool-calling, intent routing; verified live.
+Gotcha recorded in agent.py: no `from __future__ import annotations` in files defining
+google-genai tool functions (stringified annotations break automatic function calling).
 **Depends on:** 01 (reads plans), 03 (searches catalog), 05 (hands off placement)
 **Code home:** `src/furnisher/agent/`
 

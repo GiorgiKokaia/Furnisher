@@ -93,8 +93,10 @@ Stretch goal: 2D→3D.
 - ~~**M2 — Manual furnishing.**~~ **Done.** *Exit: `examples/my-apartment.placements.json` — 14
   items at true scale in the real apartment, validates clean.* (Auto-placement + connectivity
   check deliberately deferred to M3.)
-- **M3 — The agent.** Chat + inspiration images → style profile → item proposals → auto-placement
-  (04, 05, 08 minimal CLI chat). *Exit: "furnish my bedroom, scandinavian, budget €800" works.*
+- ~~**M3 — The agent.**~~ **Done.** *Exit verified live: budget → "furnish the bedroom,
+  scandinavian, cozy" → real items placed, 1492/1500 EUR tracked across two rooms.*
+  (Inspiration-image style extraction is wired via `/inspire` but not yet exercised with
+  real photos.)
 - **M4 — Room images.** Grounded Nano Banana renders per room (07). *Exit: bedroom image visibly
   contains the chosen catalog items in the right positions.*
 - **M5 — Usable app.** Web UI: plan view + chat side by side, click-to-adjust placements (02

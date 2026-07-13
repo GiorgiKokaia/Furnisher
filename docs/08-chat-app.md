@@ -1,6 +1,6 @@
 # 08 — Chat App / Orchestration
 
-**Status:** not started
+**Status:** stage 1 built — `furnisher chat <project-dir>` REPL + `app/orchestrator.py`
 **Depends on:** all of 01–07 (this is the integration layer)
 **Code home:** `src/furnisher/app/`
 
