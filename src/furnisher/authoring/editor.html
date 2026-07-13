@@ -24,6 +24,11 @@
   button.tool.active { background: #b98a3d; border-color: #b98a3d; color: #fff; }
   button.primary { background: #4a7fa5; border-color: #4a7fa5; }
   button.primary:hover { background: #598fb5; }
+  header label { display: flex; align-items: center; gap: 6px; color: #bbb; margin: 0 6px; }
+  header select {
+    font: inherit; padding: 4px 6px; border: 1px solid #555; border-radius: 4px;
+    background: #3d3733; color: #eee;
+  }
   main { flex: 1; display: flex; min-height: 0; }
   #canvas { flex: 1; display: block; cursor: crosshair; background: #fdfdfb; }
   aside {
@@ -71,6 +76,18 @@
   <button class="tool" data-tool="window" title="Click a wall to place a window (W)">+ Window</button>
   <button class="tool" data-tool="opening" title="Click a wall to place a doorless passage (P)">+ Passage</button>
   <span class="spacer"></span>
+  <label>Grid
+    <select id="gridSel" title="Grid cell size">
+      <option value="0.05">5 cm</option>
+      <option value="0.1">10 cm</option>
+      <option value="0.25">25 cm</option>
+      <option value="0.5">50 cm</option>
+      <option value="1">1 m</option>
+    </select>
+  </label>
+  <label title="Snap drawing and dragging to the grid">
+    <input type="checkbox" id="snapChk" checked> snap
+  </label>
   <button id="fitBtn" title="Fit plan to screen (F)">Fit</button>
   <button id="previewBtn" title="Server-rendered SVG with door arcs">Preview</button>
   <button id="validateBtn">Validate</button>
@@ -98,7 +115,6 @@ const FILLS = {living_room:"#f3ecdd", bedroom:"#e7ecf5", kitchen:"#f0e4d7", bath
                balcony:"#e4efe0", storage:"#e8e5e0", other:"#ececec"};
 const OPEN_COLORS = {door:"#8a6d3b", window:"#5b87a8", opening:"#9a9a9a"};
 const DEFAULT_WIDTHS = {door:0.9, window:1.2, opening:1.0};
-const SNAP = 0.05;
 const HIT_PX = 10;
 
 const canvas = document.getElementById("canvas");
@@ -115,8 +131,13 @@ let hoverEdge = null;            // {ri, edge, t} while a placement tool is acti
 let mouseWorld = [0, 0];
 let dirty = false;
 
+// ---------- grid & snapping ----------
+let gridSize = parseFloat(localStorage.getItem("furnisher.grid")) || 0.1;
+let snapOn = localStorage.getItem("furnisher.snap") !== "0";
+
 // ---------- geometry ----------
-const snap = v => Math.round(Math.round(v / SNAP) * SNAP * 10000) / 10000;
+const round4 = v => Math.round(v * 10000) / 10000;  // kill float noise even with snap off
+const snap = v => round4(snapOn ? Math.round(v / gridSize) * gridSize : v);
 const w2s = p => [p[0] * view.scale + view.ox, view.oy - p[1] * view.scale];
 const s2w = (x, y) => [(x - view.ox) / view.scale, (view.oy - y) / view.scale];
 
@@ -187,19 +208,23 @@ function resize() {
 function draw() {
   if (!plan) return;
   const W = canvas.clientWidth, H = canvas.clientHeight;
-  ctx.clearRect(0, 0, W, H);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);  // full buffer, not just the visible box
 
-  // 1 m grid
-  const [wx0, wy1] = s2w(0, 0), [wx1, wy0] = s2w(W, H);
-  ctx.strokeStyle = "#eee"; ctx.lineWidth = 1;
-  for (let x = Math.floor(wx0); x <= Math.ceil(wx1); x++) {
-    const [sx] = w2s([x, 0]);
-    ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke();
-  }
-  for (let y = Math.floor(wy0); y <= Math.ceil(wy1); y++) {
-    const sy = w2s([0, y])[1];
-    ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(W, sy); ctx.stroke();
-  }
+  // grid: cell size from the toolbar (minor lines), meter lines on top when cells are sub-meter
+  const [wx0, wyTop] = s2w(0, 0), [wx1, wyBot] = s2w(W, H);
+  const gridLines = (step, color) => {
+    ctx.strokeStyle = color; ctx.lineWidth = 1;
+    for (let x = Math.ceil(wx0 / step) * step; x <= wx1; x += step) {
+      const sx = w2s([x, 0])[0];
+      ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke();
+    }
+    for (let y = Math.ceil(wyBot / step) * step; y <= wyTop; y += step) {
+      const sy = w2s([0, y])[1];
+      ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(W, sy); ctx.stroke();
+    }
+  };
+  if (gridSize < 1 && gridSize * view.scale >= 6) gridLines(gridSize, "#f3f3f0");
+  gridLines(1, "#e7e7e3");
   // origin marker
   const [ox0, oy0] = w2s([0, 0]);
   ctx.strokeStyle = "#ccc";
@@ -496,7 +521,7 @@ function renderSidebar() {
     hint.className = "hint";
     hint.innerHTML = "<b>Room</b>: drag on the canvas.<br><b>Door / Window / Passage</b>: pick the tool, click a wall.<br>" +
       "Click to select, drag to move, <b>Del</b> to delete.<br>Scroll to zoom, drag empty space to pan.<br>" +
-      "Grid snap: 5 cm. Units: meters.";
+      "Grid size &amp; snapping: toolbar, top right. Units: meters.";
     sidebar.append(hint);
   }
 
@@ -723,11 +748,27 @@ async function preview() {
   document.body.append(overlay);
 }
 
+const gridSel = document.getElementById("gridSel");
+const snapChk = document.getElementById("snapChk");
+if ([...gridSel.options].some(o => o.value === String(gridSize))) gridSel.value = String(gridSize);
+else gridSize = parseFloat(gridSel.value);
+snapChk.checked = snapOn;
+gridSel.addEventListener("change", () => {
+  gridSize = parseFloat(gridSel.value);
+  localStorage.setItem("furnisher.grid", gridSel.value);
+  draw();
+});
+snapChk.addEventListener("change", () => {
+  snapOn = snapChk.checked;
+  localStorage.setItem("furnisher.snap", snapOn ? "1" : "0");
+});
+
 document.getElementById("saveBtn").addEventListener("click", save);
 document.getElementById("validateBtn").addEventListener("click", validate);
 document.getElementById("previewBtn").addEventListener("click", preview);
 document.getElementById("fitBtn").addEventListener("click", fitView);
-window.addEventListener("resize", resize);
+// observe the element, not the window: header/footer reflows resize the canvas too
+new ResizeObserver(resize).observe(canvas);
 window.addEventListener("beforeunload", e => { if (dirty) e.preventDefault(); });
 
 (async function init() {

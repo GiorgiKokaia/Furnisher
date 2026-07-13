@@ -37,7 +37,9 @@ file stays the source of truth; the editor is a view. All validation/serializati
 Python.
 
 What it does:
-- Draw rooms by dragging (5 cm grid snap); move rooms; reshape via corner handles.
+- Draw rooms by dragging; move rooms; reshape via corner handles. Grid cell size (5 cm – 1 m)
+  and snap on/off are toolbar controls, persisted in localStorage; the canvas draws the chosen
+  grid (meter lines darker). With snap off, coordinates are still rounded to 0.1 mm.
 - Place doors/windows/passages by clicking a wall (tools D/W/P); drag them along their wall;
   edit width/offset/swing/sill/connects in the sidebar.
 - Door/passage `connects` is auto-inferred from adjacency on save (`authoring/infer.py`) —
