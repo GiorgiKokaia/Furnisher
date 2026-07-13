@@ -44,8 +44,8 @@ def render_room(plan, room_id, placements, catalog, style) -> str
 - [x] Doors (swing arcs as sampled polylines — avoids SVG arc sweep-flag pitfalls) and windows
 - [x] Furnished mode: footprint rects with rotation, front-direction tick, name + cm dims labels
       (`render_plan(plan, placements=..., catalog=...)`)
-- [ ] Room-crop mode with numbered legend (coordinate with 07 on exactly what the vision model
-      needs — iterate together)
+- [x] Room-crop mode (`render2d/room_crop.py`): numbered footprints biggest-first, front
+      ticks, door/window labels with wall names, camera marker; returns (svg, legend, camera)
 - [ ] PNG export
 - [ ] Golden-file tests (compare SVG output against checked-in fixtures; on mismatch write the
       new file next to the golden one for eyeballing)

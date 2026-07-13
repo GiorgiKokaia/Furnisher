@@ -47,9 +47,12 @@ class RenderStyle:
 class _Transform:
     """World meters -> SVG pixels (y flipped)."""
 
-    def __init__(self, plan: FloorPlan, style: RenderStyle):
-        xs = [p[0] for room in plan.rooms for p in room.polygon]
-        ys = [p[1] for room in plan.rooms for p in room.polygon]
+    def __init__(self, plan: FloorPlan, style: RenderStyle, bounds=None):
+        if bounds is not None:
+            xs, ys = [bounds[0], bounds[2]], [bounds[1], bounds[3]]
+        else:
+            xs = [p[0] for room in plan.rooms for p in room.polygon]
+            ys = [p[1] for room in plan.rooms for p in room.polygon]
         self.min_x, self.max_y = min(xs), max(ys)
         self.scale = style.scale
         self.pad = style.padding

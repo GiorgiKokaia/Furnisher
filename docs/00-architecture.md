@@ -97,8 +97,9 @@ Stretch goal: 2D→3D.
   scandinavian, cozy" → real items placed, 1492/1500 EUR tracked across two rooms.*
   (Inspiration-image style extraction is wired via `/inspire` but not yet exercised with
   real photos.)
-- **M4 — Room images.** Grounded Nano Banana renders per room (07). *Exit: bedroom image visibly
-  contains the chosen catalog items in the right positions.*
+- ~~**M4 — Room images.**~~ **Done.** *Exit verified live: bedroom render visibly contains the
+  actual MALM bed, PAX wardrobe and MALM nightstand in planned positions; feedback re-roll
+  keeps products while changing mood.*
 - **M5 — Usable app.** Web UI: plan view + chat side by side, click-to-adjust placements (02
   phase 2, 08). 
 - **Stretch — 3D** (10).

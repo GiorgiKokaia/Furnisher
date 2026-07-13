@@ -212,6 +212,11 @@ def chat(project_dir: Path = typer.Argument(..., exists=True, file_okay=False)) 
                 elif cmd == "/inspire":
                     image_arg, _, notes = arg.partition(" ")
                     typer.echo("agent> " + orch.add_inspiration(Path(image_arg), notes))
+                elif cmd == "/room":
+                    from furnisher.render3d import generate_room_image
+
+                    out_img = generate_room_image(llm, orch.catalog, orch.project, arg.strip())
+                    typer.echo(f"agent> wrote {out_img}")
                 else:
                     typer.echo(f"agent> unknown command {cmd}")
             except Exception as exc:  # keep the REPL alive
@@ -221,6 +226,38 @@ def chat(project_dir: Path = typer.Argument(..., exists=True, file_okay=False)) 
             typer.echo("agent> " + orch.handle_message(message))
         except Exception as exc:
             typer.echo(f"agent> error: {exc}")
+
+
+render_app = typer.Typer(help="Room image generation (Nano Banana).", no_args_is_help=True)
+app.add_typer(render_app, name="render")
+
+
+@render_app.command("room")
+def render_room(
+    project_dir: Path = typer.Argument(..., exists=True, file_okay=False),
+    room_id: str = typer.Argument(...),
+    feedback: str = typer.Option("", "--feedback", help="Complaint about the previous attempt."),
+    force: bool = typer.Option(False, "--force", help="Regenerate even if cached."),
+) -> None:
+    """Generate a photorealistic, grounded image of one furnished room."""
+    from furnisher.catalog import default_catalog
+    from furnisher.llm import GeminiLLM, LLMError
+    from furnisher.project import Project
+    from furnisher.render3d import generate_room_image
+
+    try:
+        out = generate_room_image(
+            GeminiLLM(),
+            default_catalog(),
+            Project.load(project_dir),
+            room_id,
+            feedback=feedback,
+            force=force,
+        )
+    except (LLMError, ValueError, KeyError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"wrote {out}")
 
 
 def _load_placements(path: Path):

@@ -101,3 +101,18 @@ def test_ikea_measurements_ignore_package_dims():
     html = (FIXTURES / "pip-glostad.html").read_text(encoding="utf-8")
     dims = parse_measurements(html)
     assert dims["width_m"] != pytest.approx(0.65)  # 65cm is the flat-pack box width
+
+
+def test_ikea_bed_length_used_as_depth():
+    # beds list "Länge" (00001) instead of "Tiefe" (00044) — real MALM structure
+    html = (
+        '<script>{"measurements":[{"measure": "209 cm", "name": "Länge", "type": "00001"},'
+        '{"measure": "156 cm", "name": "Breite", "type": "00047"},'
+        '{"measure": "100 cm", "name": "Höhe", "type": "00041"}]}</script>'
+    )
+    dims = parse_measurements(html)
+    assert dims == {
+        "width_m": pytest.approx(1.56),
+        "depth_m": pytest.approx(2.09),
+        "height_m": pytest.approx(1.0),
+    }

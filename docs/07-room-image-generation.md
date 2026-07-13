@@ -1,6 +1,10 @@
 # 07 — Room Image Generation
 
-**Status:** spike successful (2026-07-13) — `llm.generate_image()` with the furnished plan PNG +
+**Status:** M4 built — recipe v1 (`render3d/recipe.py`), room-crop grounding render,
+product-photo grounding, content-hash caching, `furnisher render room` CLI + `/room` chat
+command, feedback re-roll. Verified live: MALM bed / PAX wardrobe / MALM nightstand rendered
+recognizably as the actual products in planned positions; feedback re-roll changed mood while
+keeping the products. Earlier spike note (2026-07-13) — `llm.generate_image()` with the furnished plan PNG +
 a text recipe (room dims, style, per-item descriptions with cm sizes, camera position) produced a
 convincing photoreal scandinavian bedroom on the first try. Observed fidelity: style, furniture
 set, and materials excellent; positions approximate (floor lamp merged toward the nightstand);
@@ -59,12 +63,14 @@ hash of (placements, style, recipe version) so unchanged rooms never regenerate.
 
 ## Tasks
 
-- [ ] `generate_image` support in `furnisher/llm/` (multi-image input)
-- [ ] Prompt template + input-image selection logic
-- [ ] Output caching by content hash
-- [ ] `furnisher render room <id>` CLI + HTML comparison dump
-- [ ] Recipe iteration on the real apartment fixture (this is M4's bulk)
-- [ ] Re-roll-with-feedback path
+- [x] `generate_image` support in `furnisher/llm/` (multi-image input)
+- [x] Prompt template + input-image selection logic (biggest items get photos, ≤5)
+- [x] Output caching by content hash (placements + style + recipe version + feedback)
+- [x] `furnisher render room <project> <room>` CLI; prompt + grounding plan dumped next to
+      each output for inspection
+- [ ] Recipe iteration: v1 is strong on products/style, approximate on exact positions and
+      window shapes; iterate when it matters
+- [x] Re-roll-with-feedback path (`--feedback`, changes the cache key)
 
 ## Open questions
 

@@ -31,6 +31,7 @@ WIDTH_TYPE = "00047"
 DEPTH_TYPE = "00044"
 HEIGHT_TYPE = "00041"
 HEIGHT_FALLBACK_TYPES = ("00413", "00138", "00039")  # backrest, armrest, seat height
+DEPTH_FALLBACK_TYPES = ("00001",)  # "Länge" — beds list length instead of depth
 
 
 def _cm_to_m(measure: str) -> float | None:
@@ -65,6 +66,10 @@ def parse_measurements(html: str) -> dict[str, float]:
         dims["width_m"] = by_type[WIDTH_TYPE]
     if DEPTH_TYPE in by_type:
         dims["depth_m"] = by_type[DEPTH_TYPE]
+    else:
+        fallbacks = [by_type[t] for t in DEPTH_FALLBACK_TYPES if t in by_type]
+        if fallbacks:
+            dims["depth_m"] = max(fallbacks)
     if HEIGHT_TYPE in by_type:
         dims["height_m"] = by_type[HEIGHT_TYPE]
     else:
