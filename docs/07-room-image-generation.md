@@ -1,6 +1,12 @@
 # 07 — Room Image Generation
 
-**Status:** not started
+**Status:** spike successful (2026-07-13) — `llm.generate_image()` with the furnished plan PNG +
+a text recipe (room dims, style, per-item descriptions with cm sizes, camera position) produced a
+convincing photoreal scandinavian bedroom on the first try. Observed fidelity: style, furniture
+set, and materials excellent; positions approximate (floor lamp merged toward the nightstand);
+room reads slightly wider than 2.5 m. Not yet done: room-crop grounding render (06 mode 3),
+product-photo grounding (needs items with images — generic catalog has none, IKEA does), caching,
+`furnisher render room` CLI.
 **Depends on:** 01, 03 (product photos), 05 (placements), 06 (room-crop render), 04 (`furnisher/llm/`)
 **Code home:** `src/furnisher/render3d/` (name reserved for the stretch goal; this is "2.5D")
 
