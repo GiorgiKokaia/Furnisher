@@ -69,7 +69,10 @@ hash of (placements, style, recipe version) so unchanged rooms never regenerate.
 - [x] `furnisher render room <project> <room>` CLI; prompt + grounding plan dumped next to
       each output for inspection
 - [ ] Recipe iteration: v1 is strong on products/style, approximate on exact positions and
-      window shapes; iterate when it matters
+      window shapes; iterate when it matters. Apartment view: must say SINGLE-STORY
+      explicitly or the model stacks a vertical plan into floors; plan text labels
+      sometimes leak into the render as wall art — a label-free grounding variant of
+      render_plan would fix that
 - [x] Re-roll-with-feedback path (`--feedback`, changes the cache key)
 
 ## Open questions

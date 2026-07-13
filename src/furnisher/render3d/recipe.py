@@ -71,12 +71,15 @@ def _style_text(style: StyleProfile | None) -> str:
 
 
 APARTMENT_PROMPT = """\
-Generate ONE 3D isometric cutaway "dollhouse" render of this entire apartment, viewed from
-above at an angle, with the ceiling removed so every room is visible.
+Generate ONE 3D isometric cutaway "dollhouse" render of this apartment, viewed from above
+at an angle, with the ceiling removed so every room is visible.
+
+This is a SINGLE-STORY apartment: ONE floor only. All rooms are on the same level,
+side by side in exactly the arrangement shown in the plan — do NOT stack them vertically.
 
 Image 1 is the furnished floor plan: room names, dimensions, and every piece of furniture
-drawn to scale at its exact position. Reproduce the same room layout, wall positions,
-door/window openings, and furniture arrangement faithfully.
+drawn to scale at its exact position. Reproduce the same room adjacencies, wall positions,
+door/window openings, and furniture arrangement faithfully, keeping the plan's proportions.
 
 Style: {style}.
 Warm, appealing architectural-visualization look, soft daylight, subtle shadows.
