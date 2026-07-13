@@ -6,17 +6,47 @@ logic, that logic is in the wrong place.
 
 from __future__ import annotations
 
+import json
+import queue
+import threading
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from shapely.geometry import LineString
 
 from furnisher.app.orchestrator import Orchestrator
 from furnisher.catalog import default_catalog
-from furnisher.layout import validate
+from furnisher.layout import placement_polygon, validate
+from furnisher.model import geometry
 from furnisher.project import Project
-from furnisher.render2d import render_plan
+from furnisher.render2d import RenderStyle, render_plan
+
+WALL_SNAP_M = 0.3  # dragged items this close to a wall get pulled flush (0.05 gap)
+
+
+def snap_to_wall(plan, placement, item) -> None:
+    """Pull a dragged item flush to its nearest wall when it lands close to one."""
+    room = plan.room(placement.room)
+    footprint = placement_polygon(placement, item)
+    best = None
+    for i in range(len(room.polygon)):
+        a, b = geometry.edge(room.polygon, i)
+        dist = footprint.distance(LineString([a, b]))
+        if best is None or dist < best[0]:
+            n = geometry.left_normal(geometry.unit(a, b))
+            best = (dist, n)
+    if best is None:
+        return
+    dist, n = best
+    shift = dist - 0.05
+    if 0 < shift and dist < WALL_SNAP_M:
+        placement.position = (
+            round(placement.position[0] - n[0] * shift, 3),
+            round(placement.position[1] - n[1] * shift, 3),
+        )
+
 
 APP_HTML = Path(__file__).parent / "app.html"
 
@@ -54,6 +84,7 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
             "budget": project.meta.get("budget"),
             "currency": project.meta.get("currency", "EUR"),
             "spent": project.spent(catalog),
+            "svg_scale": RenderStyle().scale,  # px per meter, for drag math in the browser
             "rooms": [r.id for r in project.plan.rooms],
             "placements": [
                 {
@@ -82,15 +113,40 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
 
     @app.post("/api/message")
     def message(body: dict):
+        """NDJSON stream: {"progress": ...} lines while the agent works, then the result."""
         text = (body.get("text") or "").strip()
         if not text:
             return JSONResponse({"error": "empty message"}, status_code=400)
-        try:
-            reply = orch.handle_message(text)
-        except Exception as exc:  # surface into the chat instead of a blank 500
-            reply = f"error: {exc}"
-            orch.project.append_chat("assistant", reply)
-        return {"reply": reply, "state": state()}
+
+        progress_queue: queue.Queue = queue.Queue()
+        result: dict = {}
+
+        def work() -> None:
+            orch.on_progress = progress_queue.put
+            try:
+                result.update(orch.handle_message(text))
+            except Exception as exc:  # surface into the chat instead of a broken stream
+                result["reply"] = f"error: {exc}"
+                orch.project.append_chat("assistant", result["reply"])
+            finally:
+                orch.on_progress = None
+                progress_queue.put(None)
+
+        def stream():
+            threading.Thread(target=work, daemon=True).start()
+            while True:
+                item = progress_queue.get()
+                if item is None:
+                    break
+                yield json.dumps({"progress": item}) + "\n"
+            yield json.dumps({**result, "state": state()}) + "\n"
+
+        return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+    @app.post("/api/choose")
+    def choose(body: dict):
+        result = orch.handle_message(str(int(body.get("index", -1)) + 1))
+        return {**result, "state": state()}
 
     @app.post("/api/undo")
     def undo():
@@ -116,6 +172,8 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
                     round(changed.position[0] + float(body.get("dx", 0)), 3),
                     round(changed.position[1] + float(body.get("dy", 0)), 3),
                 )
+                if body.get("snap", True):
+                    snap_to_wall(project.plan, changed, catalog.get(changed.item_ref))
             else:
                 changed.rotation = (changed.rotation + 90) % 360
             trial = [changed if p.id == pid else p for p in project.placements]
@@ -140,6 +198,23 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
         reply = orch.inspire_from_ikea(query, body.get("notes", ""))
         orch.project.append_chat("assistant", reply)
         return {"reply": reply, "state": state()}
+
+    @app.post("/api/apartment-image")
+    def apartment_image(body: dict):
+        from furnisher.render3d import generate_apartment_image
+
+        if not orch.project.placements:
+            return JSONResponse(
+                {"error": "nothing placed yet — furnish a room first"}, status_code=400
+            )
+        out = generate_apartment_image(
+            llm,
+            catalog,
+            orch.project,
+            feedback=body.get("feedback", ""),
+            force=bool(body.get("force")),
+        )
+        return {"image": f"/renders/rooms/{out.name}", "state": state()}
 
     @app.post("/api/room-image")
     def room_image(body: dict):

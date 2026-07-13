@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from furnisher.agent.models import Intent, RoomProposal, StyleProfile
+from furnisher.agent.models import Intent, RoomOptions, StyleProfile
 from furnisher.app.orchestrator import Orchestrator
 from furnisher.catalog import Catalog
 from furnisher.catalog.adapters.generic import GenericProvider
@@ -21,27 +21,47 @@ class FakeLLM:
         if tools:
             tools[0]("bed")  # simulate the agent searching
             return (
-                "I picked generic:rest-double-bed-160 as the bed and "
-                "generic:dot-nightstand as the nightstand."
+                "Option Essentials: generic:rest-double-bed-160 as the bed. "
+                "Option Comfort adds generic:dot-nightstand."
             )
         return "canned chat reply"
 
     def complete_structured(self, content, schema, *, system=None):
         if schema is Intent:
             return Intent(action="furnish_room", room_id="bedroom-1", note="")
-        if schema is RoomProposal:
-            return RoomProposal(
-                items=[
-                    {"item_id": "generic:rest-double-bed-160", "purpose": "bed", "hint": "wall"},
+        if schema is RoomOptions:
+            return RoomOptions(
+                options=[
                     {
-                        "item_id": "generic:dot-nightstand",
-                        "purpose": "nightstand",
-                        "hint": "free",
-                        "anchor": "bed",
+                        "label": "Essentials",
+                        "items": [
+                            {
+                                "item_id": "generic:rest-double-bed-160",
+                                "purpose": "bed",
+                                "hint": "wall",
+                            },
+                            {"item_id": "generic:invented-item", "purpose": "ghost"},
+                        ],
+                        "rationale": "just a bed",
                     },
-                    {"item_id": "generic:invented-item", "purpose": "ghost", "hint": "free"},
-                ],
-                rationale="a bed and a nightstand",
+                    {
+                        "label": "Comfort",
+                        "items": [
+                            {
+                                "item_id": "generic:rest-double-bed-160",
+                                "purpose": "bed",
+                                "hint": "wall",
+                            },
+                            {
+                                "item_id": "generic:dot-nightstand",
+                                "purpose": "nightstand",
+                                "hint": "free",
+                                "anchor": "bed",
+                            },
+                        ],
+                        "rationale": "bed plus nightstand",
+                    },
+                ]
             )
         if schema is StyleProfile:
             return StyleProfile(style_tags=["scandinavian"], notes="light woods")
@@ -54,35 +74,52 @@ def orch(tmp_path):
     return Orchestrator(project, Catalog([GenericProvider()]), FakeLLM())
 
 
-def test_furnish_room_end_to_end(orch):
-    reply = orch.handle_message("furnish the first bedroom please")
-    assert "Rest Double Bed 160" in reply
-    rooms = {p.room for p in orch.project.placements}
-    assert rooms == {"bedroom-1"}
-    # the invented item was dropped by grounding enforcement
-    assert all("invented" not in p.item_ref for p in orch.project.placements)
+def test_furnish_returns_options_without_placing(orch):
+    result = orch.handle_message("furnish the first bedroom please")
+    assert "pick one" in result["reply"]
+    assert len(result["options"]) == 2
+    # invented item was dropped by grounding; essentials has 1 real item
+    assert len(result["options"][0]["items"]) == 1
+    assert result["options"][1]["items"][1]["name"] == "Dot Nightstand"
+    assert orch.project.placements == []  # nothing placed until the user picks
+
+
+def test_choose_option_places_and_persists(orch):
+    orch.handle_message("furnish the first bedroom please")
+    result = orch.handle_message("2")  # digit shortcut picks Comfort
+    assert "Comfort" in result["reply"]
+    assert {p.item_ref for p in orch.project.placements} == {
+        "generic:rest-double-bed-160",
+        "generic:dot-nightstand",
+    }
+    assert [i["name"] for i in result["placed"]] == ["Rest Double Bed 160", "Dot Nightstand"]
     errors = [
         i
-        for i in validate(orch.project.plan, orch.project.placements, orch.agent.catalog)
+        for i in validate(orch.project.plan, orch.project.placements, orch.catalog)
         if i.severity == "error"
     ]
     assert errors == []
-    # persisted + rendered
-    assert (orch.project.path / "renders" / "plan.svg").exists()
     again = Project.load(orch.project.path)
     assert len(again.placements) == 2
+    assert (orch.project.path / "renders" / "plan.svg").exists()
+
+
+def test_choose_without_pending(orch):
+    result = orch.choose_option(0)
+    assert "no options pending" in result["reply"]
 
 
 def test_budget_flow(orch):
     orch.set_budget(1000)
     orch.handle_message("furnish the first bedroom please")
+    orch.handle_message("1")
     remaining = orch.budget_remaining()
-    assert remaining is not None
-    assert remaining == 1000 - orch.project.spent(orch.agent.catalog)
+    assert remaining == 1000 - orch.project.spent(orch.catalog)
 
 
 def test_clear_room(orch):
     orch.handle_message("furnish the first bedroom please")
+    orch.handle_message("1")
     assert orch.project.placements
     orch.clear_room("bedroom-1")
     assert orch.project.placements == []
@@ -90,9 +127,18 @@ def test_clear_room(orch):
 
 def test_undo_restores_placements(orch):
     orch.handle_message("furnish the first bedroom please")
+    orch.handle_message("1")
     assert orch.project.placements
     assert orch.project.undo() is True
     assert orch.project.placements == []
+
+
+def test_progress_callback(orch):
+    seen = []
+    orch.on_progress = seen.append
+    orch.handle_message("furnish the first bedroom please")
+    assert any("designing options" in m for m in seen)
+    assert any("searching catalog" in m for m in seen)
 
 
 def test_inspire_from_ikea(orch, monkeypatch):

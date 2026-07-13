@@ -13,10 +13,31 @@ from furnisher.render2d import render_plan
 
 
 class Orchestrator:
-    def __init__(self, project, catalog: Catalog, llm):
+    def __init__(self, project, catalog: Catalog, llm, on_progress=None):
         self.project = project
         self.catalog = catalog
         self.agent = DesignAgent(llm, catalog)
+        self.on_progress = on_progress  # callable(str) for live status, e.g. streaming UIs
+        self.pending_options = None  # {"room": str, "options": [RoomOption]}
+
+    def _progress(self, message: str) -> None:
+        if self.on_progress is not None:
+            try:
+                self.on_progress(message)
+            except Exception:  # a broken progress sink must never break the pipeline
+                pass
+
+    def _item_payload(self, item_ref: str) -> dict:
+        item = self.catalog.get(item_ref)
+        return {
+            "id": item.id,
+            "name": item.name,
+            "type": item.type_name,
+            "price": item.price,
+            "currency": item.currency,
+            "dims": f"{item.width_m * 100:.0f}×{item.depth_m * 100:.0f} cm",
+            "image": item.image_urls[0] if item.image_urls else None,
+        }
 
     # --- queries ---
     def style(self) -> StyleProfile | None:
@@ -116,7 +137,9 @@ class Orchestrator:
         self._mutated()
         return f"removed {before - len(self.project.placements)} items from {room_id!r}"
 
-    def furnish_room(self, room_id: str, note: str = "") -> str:
+    def furnish_room(self, room_id: str, note: str = "") -> dict:
+        """Step 1 of furnishing: agent researches and returns options; nothing is placed
+        until the user picks one (choose_option)."""
         # budget for this room excludes items already in it — re-furnishing replaces them
         budget = self.project.meta.get("budget")
         room_budget = None
@@ -127,25 +150,60 @@ class Orchestrator:
                 if p.room != room_id
             )
             room_budget = budget - spent_elsewhere
-        proposal, _reasoning = self.agent.propose_room(
+        self._progress(f"designing options for {room_id}…")
+        options, _reasoning = self.agent.propose_options(
             self.project.plan,
             room_id,
             self.style(),
             room_budget,
             self.project.meta.get("currency", "EUR"),
             note,
+            on_progress=self._progress,
         )
-        if not proposal.items:
-            return "the agent came back with no placeable items — try rephrasing or a budget"
+        if not options:
+            return {
+                "reply": "the agent came back with no placeable items — "
+                "try rephrasing or setting a budget"
+            }
+        self.pending_options = {"room": room_id, "options": options}
+        payload = []
+        for option in options:
+            items = [self._item_payload(p.item_id) for p in option.items]
+            payload.append(
+                {
+                    "label": option.label,
+                    "rationale": option.rationale,
+                    "items": items,
+                    "total": sum(i["price"] for i in items),
+                    "currency": items[0]["currency"] if items else "",
+                }
+            )
+        lines = [f"I put together {len(options)} options for {room_id} — pick one:"]
+        for n, option in enumerate(payload, start=1):
+            names = ", ".join(i["name"] for i in option["items"])
+            lines.append(
+                f"  {n}. {option['label']} — {names} ({option['total']:.0f} {option['currency']})"
+            )
+        return {"reply": "\n".join(lines), "options": payload}
 
+    def choose_option(self, index: int) -> dict:
+        """Step 2: place the chosen option's items."""
+        if not self.pending_options:
+            return {"reply": "no options pending — ask me to furnish a room first"}
+        if not 0 <= index < len(self.pending_options["options"]):
+            return {"reply": f"pick 1-{len(self.pending_options['options'])}"}
+        room_id = self.pending_options["room"]
+        option = self.pending_options["options"][index]
+        self.pending_options = None
+
+        self._progress("placing the furniture…")
         requests = [
             PlacementRequest(
                 item=self.catalog.get(p.item_id), purpose=p.purpose, hint=p.hint, anchor=p.anchor
             )
-            for p in proposal.items
+            for p in option.items
         ]
-        existing = [p for p in self.project.placements if p.room != room_id]
-        kept_other_rooms = existing
+        kept_other_rooms = [p for p in self.project.placements if p.room != room_id]
         placed, issues = auto_place(
             self.project.plan, room_id, requests, self.catalog, existing=kept_other_rooms
         )
@@ -154,7 +212,7 @@ class Orchestrator:
         self.project.placements = kept_other_rooms + placed
         self._mutated()
 
-        lines = [proposal.rationale.strip() or "done."]
+        lines = [f"{option.label} it is. " + (option.rationale.strip() or "")]
         for placement in placed:
             item = self.catalog.get(placement.item_ref)
             lines.append(
@@ -174,25 +232,35 @@ class Orchestrator:
         remaining = self.budget_remaining()
         if remaining is not None:
             lines.append(f"  budget remaining: {remaining:.0f} {self.project.meta['currency']}")
-        return "\n".join(lines)
+        return {
+            "reply": "\n".join(lines),
+            "placed": [self._item_payload(p.item_ref) for p in placed],
+        }
 
     # --- free chat / routing ---
-    def handle_message(self, message: str) -> str:
+    def handle_message(self, message: str) -> dict:
+        """Returns {"reply": str, "options": [...]?, "placed": [...]?}."""
         self.project.append_chat("user", message)
-        intent = self.agent.route(message, self.project.plan)
-        if intent.action == "furnish_room" and intent.room_id:
-            reply = self.furnish_room(intent.room_id, intent.note)
-        elif intent.action == "set_budget" and intent.budget is not None:
-            reply = self.set_budget(intent.budget)
-        elif intent.action == "clear_room" and intent.room_id:
-            reply = self.clear_room(intent.room_id)
+        stripped = message.strip()
+        if self.pending_options and stripped.isdigit():
+            result = self.choose_option(int(stripped) - 1)
         else:
-            context = (
-                f"You are a furnishing assistant for the apartment {self.project.meta['name']!r}. "
-                f"Rooms: {', '.join(r.id for r in self.project.plan.rooms)}. "
-                f"Current shopping list:\n{self.shopping_list()}\n"
-                "Answer briefly and concretely."
-            )
-            reply = self.agent.llm.complete(message, system=context)
-        self.project.append_chat("assistant", reply)
-        return reply
+            self._progress("understanding the request…")
+            intent = self.agent.route(message, self.project.plan)
+            if intent.action == "furnish_room" and intent.room_id:
+                result = self.furnish_room(intent.room_id, intent.note)
+            elif intent.action == "set_budget" and intent.budget is not None:
+                result = {"reply": self.set_budget(intent.budget)}
+            elif intent.action == "clear_room" and intent.room_id:
+                result = {"reply": self.clear_room(intent.room_id)}
+            else:
+                context = (
+                    f"You are a furnishing assistant for the apartment "
+                    f"{self.project.meta['name']!r}. "
+                    f"Rooms: {', '.join(r.id for r in self.project.plan.rooms)}. "
+                    f"Current shopping list:\n{self.shopping_list()}\n"
+                    "Answer briefly and concretely."
+                )
+                result = {"reply": self.agent.llm.complete(message, system=context)}
+        self.project.append_chat("assistant", result["reply"])
+        return result

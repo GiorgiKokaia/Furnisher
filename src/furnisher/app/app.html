@@ -32,6 +32,26 @@
   .msg.assistant { background: #fff; border: 1px solid #e4e0da; align-self: flex-start;
                    border-bottom-left-radius: 4px; }
   .msg.pending { opacity: 0.6; font-style: italic; }
+  .msg.pending::after { content: ""; display: inline-block; width: 10px; height: 10px;
+    margin-left: 8px; border: 2px solid #4a7fa5; border-top-color: transparent;
+    border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .optionCard { background: #fff; border: 1px solid #e4e0da; border-radius: 12px;
+    padding: 10px 12px; align-self: flex-start; max-width: 95%;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.07); }
+  .optionCard h4 { font-size: 13px; margin-bottom: 2px; }
+  .optionCard .total { color: #6b5b46; font-size: 12px; margin-bottom: 6px; }
+  .optionCard .items { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .optionCard .item { width: 84px; font-size: 10px; color: #555; text-align: center; }
+  .optionCard .item img, .thumbRow img, .optionCard .noimg {
+    width: 76px; height: 76px; object-fit: cover; border-radius: 8px;
+    border: 1px solid #e0dcd4; background: #f4f1ec; }
+  .optionCard .noimg { display: flex; align-items: center; justify-content: center;
+    color: #a89e90; font-size: 10px; padding: 4px; }
+  .optionCard button { font: inherit; padding: 6px 14px; border: 0; border-radius: 8px;
+    background: #4a7fa5; color: #fff; cursor: pointer; }
+  .optionCard button:disabled { background: #b8b2a8; }
+  .thumbRow { display: flex; gap: 6px; align-self: flex-start; flex-wrap: wrap; }
   #composer { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #ddd; background: #fff; }
   #composer input { flex: 1; font: inherit; padding: 9px 12px; border: 1px solid #ccc; border-radius: 8px; }
   #composer button, #toolRow button {
@@ -90,16 +110,49 @@ const $ = id => document.getElementById(id);
 let busy = false;
 let selectedPid = null;
 
-// --- click-to-adjust placements ---
+// --- click-to-adjust + drag placements ---
+let svgScale = 80;  // px per meter, refreshed from state
+let dragState = null;
+
 function attachPieceHandlers() {
   document.querySelectorAll("#planBox [data-pid]").forEach(el => {
-    el.addEventListener("click", e => {
+    el.addEventListener("pointerdown", e => {
+      e.preventDefault();
       e.stopPropagation();
-      selectPiece(el.getAttribute("data-pid"));
+      const svg = el.ownerSVGElement;
+      const factor = svg.viewBox.baseVal.width / svg.getBoundingClientRect().width;
+      dragState = {el, pid: el.getAttribute("data-pid"), startX: e.clientX, startY: e.clientY,
+                   factor, moved: false};
     });
   });
   highlightSelected();
 }
+
+window.addEventListener("pointermove", e => {
+  if (!dragState) return;
+  const dx = (e.clientX - dragState.startX) * dragState.factor;
+  const dy = (e.clientY - dragState.startY) * dragState.factor;
+  if (Math.abs(dx) + Math.abs(dy) > 3) dragState.moved = true;
+  if (dragState.moved) dragState.el.setAttribute("transform", `translate(${dx} ${dy})`);
+});
+
+window.addEventListener("pointerup", async e => {
+  if (!dragState) return;
+  const d = dragState;
+  dragState = null;
+  if (!d.moved) { selectPiece(d.pid); return; }
+  d.el.removeAttribute("transform");
+  const dxWorld = (e.clientX - d.startX) * d.factor / svgScale;
+  const dyWorld = -((e.clientY - d.startY) * d.factor) / svgScale;  // svg y-down, world y-up
+  selectedPid = d.pid;
+  const resp = await fetch("/api/placement", {method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({id: d.pid, action: "move", dx: dxWorld, dy: dyWorld})});
+  const body = await resp.json();
+  if (body.error && !body.state) { addMsg("assistant", "error: " + body.error); return; }
+  if (body.error) addMsg("assistant", "⚠ " + body.error);
+  applyState(body.state);
+});
 
 function highlightSelected() {
   document.querySelectorAll("#planBox [data-pid]").forEach(el =>
@@ -164,6 +217,7 @@ window.addEventListener("keydown", e => {
 });
 
 function applyState(s) {
+  svgScale = s.svg_scale || 80;
   $("projName").textContent = s.name;
   const tags = $("styleTags");
   tags.innerHTML = "";
@@ -219,6 +273,28 @@ function applyState(s) {
     setBusy(false);
   });
   tools.append(inspire);
+  const apt = document.createElement("button");
+  apt.textContent = "🏠 apartment view";
+  apt.title = "generate a 3D cutaway image of the whole furnished apartment";
+  apt.addEventListener("click", async () => {
+    if (busy) return;
+    const pending = addMsg("assistant", "rendering the apartment view…", true);
+    setBusy(true);
+    try {
+      const r = await fetch("/api/apartment-image", {method: "POST",
+        headers: {"Content-Type": "application/json"}, body: "{}"});
+      const body = await r.json();
+      pending.remove();
+      if (body.error) addMsg("assistant", "error: " + body.error);
+      else {
+        addMsg("assistant", "here's the whole apartment — click the thumbnail to enlarge");
+        applyState(body.state);
+        showOverlay(body.image + "?t=" + Date.now());
+      }
+    } catch (exc) { pending.remove(); addMsg("assistant", "error: " + exc); }
+    setBusy(false);
+  });
+  tools.append(apt);
   s.rooms.forEach(room => {
     const b = document.createElement("button");
     b.textContent = "📷 " + room;
@@ -252,6 +328,85 @@ function setBusy(value) {
   $("send").disabled = value;
 }
 
+function itemThumb(item) {
+  const wrap = document.createElement("div");
+  wrap.className = "item";
+  if (item.image) {
+    const img = document.createElement("img");
+    img.referrerPolicy = "no-referrer";  // IKEA's CDN rejects hotlinks with a foreign Referer
+    img.src = item.image;
+    img.loading = "lazy";
+    img.title = `${item.name} — ${item.dims}`;
+    img.addEventListener("click", () => showOverlay(item.image));
+    wrap.append(img);
+  } else {
+    const ph = document.createElement("div");
+    ph.className = "noimg";
+    ph.textContent = item.name;
+    wrap.append(ph);
+  }
+  const cap = document.createElement("div");
+  cap.textContent = `${item.name} · ${Math.round(item.price)} ${item.currency}`;
+  wrap.append(cap);
+  return wrap;
+}
+
+function addOptionCards(options) {
+  const buttons = [];
+  options.forEach((option, i) => {
+    const card = document.createElement("div");
+    card.className = "optionCard";
+    const h = document.createElement("h4");
+    h.textContent = `${i + 1}. ${option.label}`;
+    const total = document.createElement("div");
+    total.className = "total";
+    total.textContent = `${Math.round(option.total)} ${option.currency}` +
+      (option.rationale ? " — " + option.rationale : "");
+    const items = document.createElement("div");
+    items.className = "items";
+    option.items.forEach(item => items.append(itemThumb(item)));
+    const btn = document.createElement("button");
+    btn.textContent = "choose " + option.label;
+    buttons.push(btn);
+    btn.addEventListener("click", async () => {
+      if (busy) return;
+      buttons.forEach(b => b.disabled = true);
+      const pending = addMsg("assistant", "placing the furniture…", true);
+      setBusy(true);
+      try {
+        const r = await fetch("/api/choose", {method: "POST",
+          headers: {"Content-Type": "application/json"}, body: JSON.stringify({index: i})});
+        const body = await r.json();
+        pending.remove();
+        addMsg("assistant", body.reply ?? "(no reply)");
+        if (body.placed) addThumbRow(body.placed);
+        if (body.state) applyState(body.state);
+      } catch (exc) { pending.remove(); addMsg("assistant", "error: " + exc); }
+      setBusy(false);
+    });
+    card.append(h, total, items, btn);
+    $("chat").append(card);
+  });
+  $("chat").scrollTop = $("chat").scrollHeight;
+}
+
+function addThumbRow(items) {
+  const row = document.createElement("div");
+  row.className = "thumbRow";
+  items.filter(i => i.image).forEach(item => {
+    const img = document.createElement("img");
+    img.referrerPolicy = "no-referrer";
+    img.src = item.image;
+    img.title = item.name;
+    img.addEventListener("click", () => showOverlay(item.image));
+    row.append(img);
+  });
+  if (row.children.length) {
+    $("chat").append(row);
+    $("chat").scrollTop = $("chat").scrollHeight;
+  }
+}
+
 async function send() {
   const text = $("input").value.trim();
   if (!text || busy) return;
@@ -262,10 +417,31 @@ async function send() {
   try {
     const resp = await fetch("/api/message", {method: "POST",
       headers: {"Content-Type": "application/json"}, body: JSON.stringify({text})});
-    const body = await resp.json();
+    // NDJSON stream: progress lines update the pending bubble, last line is the result
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "", final = null;
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, {stream: true});
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line) continue;
+        const obj = JSON.parse(line);
+        if (obj.progress) pending.textContent = obj.progress;
+        else final = obj;
+      }
+    }
     pending.remove();
-    addMsg("assistant", body.reply ?? body.error ?? "(no reply)");
-    if (body.state) applyState(body.state);
+    if (final) {
+      addMsg("assistant", final.reply ?? final.error ?? "(no reply)");
+      if (final.options) addOptionCards(final.options);
+      if (final.placed) addThumbRow(final.placed);
+      if (final.state) applyState(final.state);
+    }
   } catch (exc) {
     pending.remove();
     addMsg("assistant", "error: " + exc);

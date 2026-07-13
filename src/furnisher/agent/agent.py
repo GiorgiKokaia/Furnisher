@@ -9,7 +9,13 @@ function's annotations, and google-genai's automatic function calling then fails
 import logging
 from pathlib import Path
 
-from furnisher.agent.models import Intent, ProposedItem, RoomProposal, StyleProfile
+from furnisher.agent.models import (
+    Intent,
+    ProposedItem,
+    RoomOption,
+    RoomOptions,
+    StyleProfile,
+)
 from furnisher.catalog import Catalog, SearchFilters
 from furnisher.model import FloorPlan
 
@@ -53,7 +59,7 @@ class DesignAgent:
         content = f"Rooms in the plan: {rooms}\n\nUser message: {message}"
         return self.llm.complete_structured(content, Intent, system=_prompt("route"))
 
-    def propose_room(
+    def propose_options(
         self,
         plan: FloorPlan,
         room_id: str,
@@ -61,8 +67,9 @@ class DesignAgent:
         budget_remaining: float | None,
         currency: str,
         note: str = "",
-    ) -> tuple[RoomProposal, str]:
-        """Returns (validated proposal, the agent's free-text reasoning)."""
+        on_progress=None,
+    ) -> tuple[list[RoomOption], str]:
+        """Returns (2-3 grounded furnishing options, the agent's free-text reasoning)."""
         seen_ids: set[str] = set()
 
         # NB: keep the signature free of `X | None` unions — google-genai's automatic
@@ -71,6 +78,8 @@ class DesignAgent:
             """Search real furniture. Returns id, name, type, width/depth/height in meters,
             and price. Propose only ids returned by this tool. Pass max_price=0 for no
             price limit."""
+            if on_progress:
+                on_progress(f"searching catalog: {query}")
             filters = SearchFilters(price_max=max_price if max_price > 0 else None)
             results = self.catalog.search(query, filters, limit=8)
             for item in results:
@@ -101,21 +110,33 @@ class DesignAgent:
         reasoning = self.llm.complete(
             "\n\n".join(parts), system=_prompt("proposal"), tools=[search_catalog]
         )
+        if on_progress:
+            on_progress("shaping the options…")
 
         draft = self.llm.complete_structured(
-            "Convert this furnishing decision into the structured format. Use ONLY catalog "
-            "ids that appear verbatim in the text:\n\n" + reasoning,
-            RoomProposal,
+            "Convert this furnishing decision into the structured format (2-3 options). "
+            "Use ONLY catalog ids that appear verbatim in the text:\n\n" + reasoning,
+            RoomOptions,
         )
 
         # Grounding enforcement: drop anything the tool never returned / the catalog can't resolve
-        items: list[ProposedItem] = []
-        for proposed in draft.items:
-            if proposed.item_id not in seen_ids:
-                try:
-                    self.catalog.get(proposed.item_id)
-                except KeyError:
-                    log.warning("agent proposed unknown item %r — dropped", proposed.item_id)
-                    continue
-            items.append(proposed)
-        return RoomProposal(items=items, rationale=draft.rationale), reasoning
+        options: list[RoomOption] = []
+        for option in draft.options[:3]:
+            items: list[ProposedItem] = []
+            for proposed in option.items:
+                if proposed.item_id not in seen_ids:
+                    try:
+                        self.catalog.get(proposed.item_id)
+                    except KeyError:
+                        log.warning("agent proposed unknown item %r — dropped", proposed.item_id)
+                        continue
+                items.append(proposed)
+            if items:
+                options.append(
+                    RoomOption(
+                        label=option.label or f"Option {len(options) + 1}",
+                        items=items,
+                        rationale=option.rationale,
+                    )
+                )
+        return options, reasoning

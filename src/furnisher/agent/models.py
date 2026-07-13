@@ -27,6 +27,16 @@ class RoomProposal(BaseModel):
     rationale: str = ""
 
 
+class RoomOption(BaseModel):
+    label: str = ""  # short: "Essentials", "Comfort", "Splurge"
+    items: list[ProposedItem] = Field(default_factory=list)
+    rationale: str = ""
+
+
+class RoomOptions(BaseModel):
+    options: list[RoomOption] = Field(default_factory=list)
+
+
 class Intent(BaseModel):
     action: Literal["furnish_room", "set_budget", "clear_room", "question"]
     room_id: str | None = None  # exact id from the plan's room list

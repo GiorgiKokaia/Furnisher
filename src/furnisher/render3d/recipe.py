@@ -70,6 +70,55 @@ def _style_text(style: StyleProfile | None) -> str:
     return "; ".join(bits) or "neutral"
 
 
+APARTMENT_PROMPT = """\
+Generate ONE 3D isometric cutaway "dollhouse" render of this entire apartment, viewed from
+above at an angle, with the ceiling removed so every room is visible.
+
+Image 1 is the furnished floor plan: room names, dimensions, and every piece of furniture
+drawn to scale at its exact position. Reproduce the same room layout, wall positions,
+door/window openings, and furniture arrangement faithfully.
+
+Style: {style}.
+Warm, appealing architectural-visualization look, soft daylight, subtle shadows.
+No people, no text overlays, no watermark.
+{feedback}"""
+
+
+def generate_apartment_image(llm, catalog, project, feedback: str = "", force: bool = False):
+    """Whole-apartment isometric overview, grounded on the furnished plan render."""
+    from furnisher.render2d import render_plan
+
+    key = hashlib.sha256(
+        json.dumps(
+            {
+                "recipe": RECIPE_VERSION,
+                "placements": [p.model_dump(mode="json") for p in project.placements],
+                "style": project.meta.get("style_profile"),
+                "feedback": feedback,
+                "kind": "apartment",
+            },
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()[:10]
+    out_dir = project.path / "renders" / "rooms"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"apartment-{key}.png"
+    if out_path.exists() and not force:
+        return out_path
+
+    style = project.meta.get("style_profile")
+    style_profile = StyleProfile.model_validate(style) if style else None
+    prompt = APARTMENT_PROMPT.format(
+        style=_style_text(style_profile),
+        feedback=f"- User feedback on the previous attempt: {feedback}" if feedback else "",
+    )
+    svg = render_plan(project.plan, placements=project.placements, catalog=catalog)
+    image = llm.generate_image([prompt, (svg_to_png(svg), "image/png")])
+    out_path.write_bytes(image)
+    (out_dir / f"apartment-{key}.prompt.txt").write_text(prompt, encoding="utf-8")
+    return out_path
+
+
 def generate_room_image(
     llm,
     catalog,

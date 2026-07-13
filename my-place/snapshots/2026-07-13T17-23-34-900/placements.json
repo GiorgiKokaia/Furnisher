@@ -1,0 +1,48 @@
+{
+  "placements": [
+    {
+      "id": "sofa",
+      "item_ref": "generic:loft-sofa-3",
+      "room": "Chill",
+      "position": [
+        6.69,
+        1.525
+      ],
+      "rotation": 180.0,
+      "note": null
+    },
+    {
+      "id": "tv-stand",
+      "item_ref": "generic:beam-tv-bench",
+      "room": "Chill",
+      "position": [
+        8.05,
+        4.24
+      ],
+      "rotation": 0.0,
+      "note": null
+    },
+    {
+      "id": "armchair",
+      "item_ref": "generic:ridge-armchair",
+      "room": "Chill",
+      "position": [
+        4.475,
+        3.79
+      ],
+      "rotation": 90.0,
+      "note": null
+    },
+    {
+      "id": "coffee-table",
+      "item_ref": "generic:slab-coffee-table",
+      "room": "Chill",
+      "position": [
+        8.155,
+        1.525
+      ],
+      "rotation": 270.0,
+      "note": null
+    }
+  ]
+}

@@ -2,9 +2,19 @@
 
 **Status:** stage 1 + stage 2 built — `furnisher chat` REPL and `furnisher app` web UI
 (`app/webapp.py` + `app/app.html`): furnished plan + chat side by side, room-photo gallery,
-per-room camera buttons, undo, budget header. Click-to-adjust placements: click a piece on the plan (SVG carries data-pid), floating
-toolbar + arrow keys nudge 10 cm, r rotates, Del deletes — every edit validated server-side
-and rejected with the LayoutIssue message when illegal.
+per-room camera buttons, undo, budget header. Web app v2 additions:
+- **Streaming**: `/api/message` returns NDJSON — `{"progress": ...}` lines (intent routing,
+  each catalog search, placement) update the pending bubble live, last line carries the result.
+- **Options**: furnishing is two-step — the agent proposes 2-3 labeled options (RoomOptions),
+  rendered as chat cards with product photos (`referrerPolicy=no-referrer`, IKEA's CDN rejects
+  foreign Referers) and a choose button (`/api/choose`; typing the number works too, also CLI).
+  Nothing is placed until the user picks.
+- **Drag**: pieces drag with live ghost; on drop `/api/placement` applies the world-space
+  delta, snaps flush to the nearest wall within 0.3 m (`snap_to_wall`), validates, and
+  rejects illegal drops back to their old spot. Click still selects (floating toolbar:
+  nudge/rotate/delete).
+- **🏠 apartment view**: whole-apartment isometric cutaway via Nano Banana grounded on the
+  furnished plan (`/api/apartment-image`, cached by content hash).
 **Depends on:** all of 01–07 (this is the integration layer)
 **Code home:** `src/furnisher/app/`
 

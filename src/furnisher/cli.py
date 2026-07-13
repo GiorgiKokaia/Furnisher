@@ -252,7 +252,10 @@ def chat(project_dir: Path = typer.Argument(..., exists=True, file_okay=False)) 
                 typer.echo(f"agent> error: {exc}")
             continue
         try:
-            typer.echo("agent> " + orch.handle_message(message))
+            result = orch.handle_message(message)
+            typer.echo("agent> " + result["reply"])
+            if result.get("options"):
+                typer.echo("agent> (reply with just the number to choose)")
         except Exception as exc:
             typer.echo(f"agent> error: {exc}")
 

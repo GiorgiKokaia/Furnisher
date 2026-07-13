@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="568" height="888" viewBox="0 0 568 888" font-family="'Segoe UI', system-ui, sans-serif">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<polygon points="64,344 504,344 504,64 64,64" fill="#f3ecdd" stroke="#2f2a26" stroke-width="9.6" stroke-linejoin="miter"/>
+<polygon points="64,624 184,624 184,344 64,344" fill="#eeeae4" stroke="#2f2a26" stroke-width="9.6" stroke-linejoin="miter"/>
+<polygon points="184,504 504,504 504,344 184,344" fill="#f0e4d7" stroke="#2f2a26" stroke-width="9.6" stroke-linejoin="miter"/>
+<polygon points="184,624 504,624 504,504 184,504" fill="#ddeef0" stroke="#2f2a26" stroke-width="9.6" stroke-linejoin="miter"/>
+<polygon points="64,824 504,824 504,624 64,624" fill="#e7ecf5" stroke="#2f2a26" stroke-width="9.6" stroke-linejoin="miter"/>
+<polygon points="224,68.8 128,68.8 128,59.2 224,59.2" fill="#cfe3f2" stroke="#5b87a8" stroke-width="1.5"/>
+<polyline points="224,64 128,64" fill="none" stroke="#5b87a8" stroke-width="1" stroke-linecap="butt"/>
+<polygon points="424,68.8 328,68.8 328,59.2 424,59.2" fill="#cfe3f2" stroke="#5b87a8" stroke-width="1.5"/>
+<polyline points="424,64 328,64" fill="none" stroke="#5b87a8" stroke-width="1" stroke-linecap="butt"/>
+<polygon points="499.2,264 499.2,168 508.8,168 508.8,264" fill="#cfe3f2" stroke="#5b87a8" stroke-width="1.5"/>
+<polyline points="504,264 504,168" fill="none" stroke="#5b87a8" stroke-width="1" stroke-linecap="butt"/>
+<polyline points="104,344 176,344" fill="none" stroke="#f3ecdd" stroke-width="11.6" stroke-linecap="butt"/>
+<polyline points="176,344 174.91,331.5 171.66,319.37 166.35,308 159.16,297.72 150.28,288.84 140,281.65 128.63,276.34 116.5,273.09 104,272" fill="none" stroke="#8a6d3b" stroke-width="1.2" stroke-linecap="round"/>
+<polyline points="104,344 104,272" fill="none" stroke="#8a6d3b" stroke-width="2.5" stroke-linecap="round"/>
+<polyline points="64,464 64,536" fill="none" stroke="#eeeae4" stroke-width="11.6" stroke-linecap="butt"/>
+<polyline points="64,536 76.5,534.91 88.63,531.66 100,526.35 110.28,519.16 119.16,510.28 126.35,500 131.66,488.63 134.91,476.5 136,464" fill="none" stroke="#8a6d3b" stroke-width="1.2" stroke-linecap="round"/>
+<polyline points="64,464 136,464" fill="none" stroke="#8a6d3b" stroke-width="2.5" stroke-linecap="round"/>
+<polyline points="184,464 184,392" fill="none" stroke="#eeeae4" stroke-width="11.6" stroke-linecap="butt"/>
+<polyline points="184,392 171.5,393.09 159.37,396.34 148,401.65 137.72,408.84 128.84,417.72 121.65,428 116.34,439.37 113.09,451.5 112,464" fill="none" stroke="#8a6d3b" stroke-width="1.2" stroke-linecap="round"/>
+<polyline points="184,464 112,464" fill="none" stroke="#8a6d3b" stroke-width="2.5" stroke-linecap="round"/>
+<polyline points="184,624 184,552" fill="none" stroke="#eeeae4" stroke-width="11.6" stroke-linecap="butt"/>
+<polyline points="184,552 171.5,553.09 159.37,556.34 148,561.65 137.72,568.84 128.84,577.72 121.65,588 116.34,599.37 113.09,611.5 112,624" fill="none" stroke="#8a6d3b" stroke-width="1.2" stroke-linecap="round"/>
+<polyline points="184,624 112,624" fill="none" stroke="#8a6d3b" stroke-width="2.5" stroke-linecap="round"/>
+<polyline points="104,624 176,624" fill="none" stroke="#eeeae4" stroke-width="11.6" stroke-linecap="butt"/>
+<polyline points="176,624 174.91,611.5 171.66,599.37 166.35,588 159.16,577.72 150.28,568.84 140,561.65 128.63,556.34 116.5,553.09 104,552" fill="none" stroke="#8a6d3b" stroke-width="1.2" stroke-linecap="round"/>
+<polyline points="104,624 104,552" fill="none" stroke="#8a6d3b" stroke-width="2.5" stroke-linecap="round"/>
+<polygon points="499.2,784 499.2,688 508.8,688 508.8,784" fill="#cfe3f2" stroke="#5b87a8" stroke-width="1.5"/>
+<polyline points="504,784 504,688" fill="none" stroke="#5b87a8" stroke-width="1" stroke-linecap="butt"/>
+<polygon points="224,819.2 320,819.2 320,828.8 224,828.8" fill="#cfe3f2" stroke="#5b87a8" stroke-width="1.5"/>
+<polyline points="224,824 320,824" fill="none" stroke="#5b87a8" stroke-width="1" stroke-linecap="butt"/>
+<polygon points="370.4,264 188,264 188,340 370.4,340" fill="#f8efe2" fill-opacity="0.94" stroke="#7a6a55" stroke-width="2" stroke-linejoin="round" data-pid="sofa"/>
+<polyline points="279.2,284.9 279.2,265.9" fill="none" stroke="#b0a08a" stroke-width="1.5" stroke-linecap="round"/>
+<text x="279.2" y="302" text-anchor="middle" fill="#5d5142" font-size="9">Loft Sofa 3</text>
+<text x="279.2" y="312" text-anchor="middle" fill="#9a8d78" font-size="8">228×95</text>
+<polygon points="228,101.6 372,101.6 372,68 228,68" fill="#f7f4ec" fill-opacity="0.94" stroke="#7a6a55" stroke-width="2" stroke-linejoin="round" data-pid="tv-stand"/>
+<polyline points="300,92.36 300,100.76" fill="none" stroke="#b0a08a" stroke-width="1.5" stroke-linecap="round"/>
+<text x="300" y="84.8" text-anchor="middle" fill="#5d5142" font-size="9">Beam TV Bench</text>
+<polygon points="136,153.6 136,88 68,88 68,153.6" fill="#f8efe2" fill-opacity="0.94" stroke="#7a6a55" stroke-width="2" stroke-linejoin="round" data-pid="armchair"/>
+<polyline points="117.3,120.8 134.3,120.8" fill="none" stroke="#b0a08a" stroke-width="1.5" stroke-linecap="round"/>
+<text x="102" y="120.8" text-anchor="middle" fill="#5d5142" font-size="9">Ridge Armchair</text>
+<text x="102" y="130.8" text-anchor="middle" fill="#9a8d78" font-size="8">82×85</text>
+<polygon points="374.4,266 374.4,338 418.4,338 418.4,266" fill="#f7f4ec" fill-opacity="0.94" stroke="#7a6a55" stroke-width="2" stroke-linejoin="round" data-pid="coffee-table"/>
+<polyline points="386.5,302 375.5,302" fill="none" stroke="#b0a08a" stroke-width="1.5" stroke-linecap="round"/>
+<text x="396.4" y="302" text-anchor="middle" fill="#5d5142" font-size="9" transform="rotate(-90 396.4 302)">Slab Coffee Table</text>
+<text x="75.2" y="83.6" fill="#3a3a3a" font-size="11" font-weight="600">Chill <tspan fill="#7a7a7a" font-weight="400" font-size="10">5.5 × 3.5 m · 19.2 m²</tspan></text>
+<text x="75.2" y="363.6" fill="#3a3a3a" font-size="11" font-weight="600">Entry <tspan fill="#7a7a7a" font-weight="400" font-size="10">1.5 × 3.5 m · 5.2 m²</tspan></text>
+<text x="195.2" y="363.6" fill="#3a3a3a" font-size="11" font-weight="600">Kitchen <tspan fill="#7a7a7a" font-weight="400" font-size="10">4 × 2 m · 8.0 m²</tspan></text>
+<text x="195.2" y="523.6" fill="#3a3a3a" font-size="11" font-weight="600">Bathroom <tspan fill="#7a7a7a" font-weight="400" font-size="10">4 × 1.5 m · 6.0 m²</tspan></text>
+<text x="75.2" y="643.6" fill="#3a3a3a" font-size="11" font-weight="600">Sleep <tspan fill="#7a7a7a" font-weight="400" font-size="10">5.5 × 2.5 m · 13.8 m²</tspan></text>
+</svg>
