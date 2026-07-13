@@ -35,3 +35,9 @@ def test_door_and_window_symbols_present(two_bedroom):
 
 def test_render_is_deterministic(studio):
     assert render_plan(studio) == render_plan(studio)
+
+
+def test_room_labels_show_dimensions(studio):
+    svg = render_plan(studio)
+    assert "5 × 4 m · 20.0 m²" in svg  # main room
+    assert "2 × 2.2 m · 4.4 m²" in svg  # bathroom

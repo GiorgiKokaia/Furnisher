@@ -173,6 +173,15 @@ function polyCentroid(poly) {
   return [cx / poly.length, cy / poly.length];
 }
 
+function dimsLabel(room) {
+  const xs = room.polygon.map(p => p[0]), ys = room.polygon.map(p => p[1]);
+  const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys);
+  const area = polyArea(room.polygon);
+  const approx = Math.abs(area - w * h) < 1e-6 ? "" : "≈ ";  // bbox dims for non-rect rooms
+  const fmt = v => String(Math.round(v * 100) / 100);
+  return `${approx}${fmt(w)} × ${fmt(h)} m · ${area.toFixed(1)} m²`;
+}
+
 function edgePoints(room, edge) {
   const poly = room.polygon;
   return [poly[edge], poly[(edge + 1) % poly.length]];
@@ -266,7 +275,7 @@ function draw() {
     ctx.fillStyle = "#3a3a3a"; ctx.font = "600 13px 'Segoe UI', sans-serif";
     ctx.fillText(room.id, cx, cy);
     ctx.fillStyle = "#8a8a8a"; ctx.font = "11px 'Segoe UI', sans-serif";
-    ctx.fillText(polyArea(room.polygon).toFixed(1) + " m²", cx, cy + 14);
+    ctx.fillText(dimsLabel(room), cx, cy + 14);
   });
 
   // vertex handles for selected room
@@ -477,7 +486,13 @@ function renderSidebar() {
     const room = plan.rooms[sel.i];
     h("Room");
     sidebar.append(field("id", textInput(room.id, v => { renameRoom(room, v); renderSidebar(); draw(); })));
-    sidebar.append(field("type", selectInput(ROOM_TYPES, room.type, v => { room.type = v; markDirty(); draw(); })));
+    sidebar.append(field("type", selectInput(ROOM_TYPES, room.type, v => {
+      room.type = v;
+      // auto-generated ids ("room-2", "bedroom-1", ...) follow the type; custom names are kept
+      const autoId = new RegExp("^(room|" + ROOM_TYPES.map(t => t.replace(/_/g, "-")).join("|") + ")-\\d+$");
+      if (autoId.test(room.id)) renameRoom(room, freshId(v.replace(/_/g, "-")));
+      markDirty(); renderSidebar(); draw();
+    })));
     sidebar.append(field("ceiling (m)", numInput(room.ceiling_height, v => { room.ceiling_height = v; markDirty(); }, 0.05)));
     const del = document.createElement("button");
     del.textContent = "Delete room"; del.className = "danger";

@@ -80,6 +80,16 @@ def _polyline(
     )
 
 
+def _dims_label(room) -> str:
+    """Bounding-box dimensions + area; '≈' marks non-rectangular rooms where W × H is the bbox."""
+    xs = [p[0] for p in room.polygon]
+    ys = [p[1] for p in room.polygon]
+    w, h = max(xs) - min(xs), max(ys) - min(ys)
+    area = room.area()
+    approx = "" if abs(area - w * h) < 1e-6 else "≈ "
+    return f"{approx}{_fmt(w)} × {_fmt(h)} m · {area:.1f} m²"
+
+
 def render_plan(plan: FloorPlan, style: RenderStyle | None = None) -> str:
     style = style or RenderStyle()
     if not plan.rooms:
@@ -122,7 +132,7 @@ def render_plan(plan: FloorPlan, style: RenderStyle | None = None) -> str:
         )
         parts.append(
             f'<text x="{_fmt(cx)}" y="{_fmt(cy + 16)}" text-anchor="middle" '
-            f'fill="{style.sublabel_color}" font-size="11">{room.area():.1f} m²</text>'
+            f'fill="{style.sublabel_color}" font-size="11">{_dims_label(room)}</text>'
         )
 
     parts.append("</svg>")
