@@ -35,7 +35,9 @@ class CatalogCache:
         self.root = root
         self.root.mkdir(parents=True, exist_ok=True)
         self.images_dir = self.root / "images"
-        self._db = sqlite3.connect(self.root / "catalog.db")
+        # check_same_thread=False: FastAPI runs sync endpoints in a threadpool; our access
+        # pattern is short single-statement ops, which sqlite serializes safely enough here
+        self._db = sqlite3.connect(self.root / "catalog.db", check_same_thread=False)
         self._db.executescript(_SCHEMA)
 
     def close(self) -> None:

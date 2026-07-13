@@ -167,6 +167,33 @@ def project_new(
     typer.echo(f"created project at {directory}")
 
 
+@app.command("app")
+def web_app(
+    project_dir: Path = typer.Argument(..., exists=True, file_okay=False),
+    port: int = typer.Option(8378, "--port", "-p"),
+    no_browser: bool = typer.Option(False, "--no-browser"),
+) -> None:
+    """The web app: furnished plan + chat side by side (docs/08 stage 2)."""
+    import threading
+    import webbrowser
+
+    import uvicorn
+
+    from furnisher.app.webapp import create_app
+    from furnisher.llm import LLMError
+
+    try:
+        web = create_app(project_dir)
+    except LLMError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    url = f"http://127.0.0.1:{port}"
+    if not no_browser:
+        threading.Timer(0.8, webbrowser.open, args=(url,)).start()
+    typer.echo(f"furnishing {project_dir} at {url} (Ctrl+C to stop)")
+    uvicorn.run(web, host="127.0.0.1", port=port, log_level="warning")
+
+
 @app.command("chat")
 def chat(project_dir: Path = typer.Argument(..., exists=True, file_okay=False)) -> None:
     """Chat-driven furnishing (stage 1 REPL, docs/08)."""

@@ -33,7 +33,7 @@ task checklist so work can be resumed (by a human or an agent) without extra con
 
 ## Status
 
-**M0–M4 done** — schema, GUI plan editor, provider-agnostic catalog (generic + live IKEA
+**M0–M5 done** (M5 minus drag-to-adjust) — schema, GUI plan editor, provider-agnostic catalog (generic + live IKEA
 adapters), layout validation + auto-placement, furnished rendering, chat design agent. Try it:
 
 ```
@@ -50,6 +50,8 @@ The design agent is live too (M3):
 uv run furnisher project new my-place --plan my-apartment.yaml
 uv run furnisher chat my-place        # "set a budget of 1500", "furnish the bedroom, cozy"
 uv run furnisher render room my-place Sleep   # grounded photoreal room image (Nano Banana)
+uv run furnisher app my-place                 # the web app: plan + chat + photo gallery
 ```
 
-Next: **M5 — the web app** (plan + chat side by side). See `docs/00-architecture.md`.
+Remaining: drag-to-adjust placements in the web app, layout-quality iteration, more catalog
+providers (Georgia-reachable), 2D->3D stretch (docs/10).

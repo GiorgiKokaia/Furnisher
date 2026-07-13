@@ -1,6 +1,8 @@
 # 08 — Chat App / Orchestration
 
-**Status:** stage 1 built — `furnisher chat <project-dir>` REPL + `app/orchestrator.py`
+**Status:** stage 1 + stage 2 built — `furnisher chat` REPL and `furnisher app` web UI
+(`app/webapp.py` + `app/app.html`): furnished plan + chat side by side, room-photo gallery,
+per-room camera buttons, undo, budget header. Drag-to-adjust placements still pending.
 **Depends on:** all of 01–07 (this is the integration layer)
 **Code home:** `src/furnisher/app/`
 

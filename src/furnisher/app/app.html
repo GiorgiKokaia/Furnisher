@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Furnisher</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; color: #333;
+         display: flex; flex-direction: column; background: #f5f3f0; }
+  header { display: flex; align-items: baseline; gap: 16px; padding: 10px 16px;
+           background: #2f2a26; color: #eee; }
+  header .brand { font-weight: 700; letter-spacing: 0.5px; }
+  header .spacer { flex: 1; }
+  header .budget { color: #d9c9a8; }
+  main { flex: 1; display: flex; min-height: 0; }
+  #left { flex: 1.3; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid #ddd; }
+  #planBox { flex: 1; overflow: auto; background: #fff; padding: 8px; }
+  #planBox svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+  #gallery { display: flex; gap: 8px; padding: 8px; overflow-x: auto; background: #ece8e2;
+             border-top: 1px solid #ddd; min-height: 118px; align-items: center; }
+  #gallery img { height: 100px; border-radius: 6px; cursor: pointer; border: 1px solid #ccc; }
+  #gallery .hint { color: #999; padding: 0 8px; }
+  #right { flex: 1; display: flex; flex-direction: column; min-width: 340px; max-width: 520px; }
+  #chat { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { padding: 8px 12px; border-radius: 10px; max-width: 92%; white-space: pre-wrap; line-height: 1.4; }
+  .msg.user { background: #4a7fa5; color: #fff; align-self: flex-end; }
+  .msg.assistant { background: #fff; border: 1px solid #ddd; align-self: flex-start; }
+  .msg.pending { opacity: 0.6; font-style: italic; }
+  #composer { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #ddd; background: #fff; }
+  #composer input { flex: 1; font: inherit; padding: 9px 12px; border: 1px solid #ccc; border-radius: 8px; }
+  #composer button, #toolRow button {
+    font: inherit; padding: 8px 14px; border: 0; border-radius: 8px; background: #4a7fa5;
+    color: #fff; cursor: pointer; }
+  #composer button:disabled { background: #9ab4c6; }
+  #toolRow { display: flex; gap: 6px; padding: 8px 10px; background: #fff; border-top: 1px solid #eee;
+             flex-wrap: wrap; }
+  #toolRow button { background: #6b6259; padding: 6px 10px; font-size: 12px; }
+  #issues { padding: 6px 12px; font-size: 12px; color: #8a3b34; background: #fdf0ef;
+            border-top: 1px solid #e8c5c2; max-height: 90px; overflow-y: auto; }
+  #issues:empty { display: none; }
+  #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex;
+             align-items: center; justify-content: center; z-index: 10; }
+  #overlay img { max-width: 94vw; max-height: 94vh; border-radius: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">Furnisher</span>
+  <span id="projName"></span>
+  <span class="spacer"></span>
+  <span class="budget" id="budget"></span>
+</header>
+<main>
+  <div id="left">
+    <div id="planBox"></div>
+    <div id="gallery"><span class="hint">room photos appear here — try “show me the bedroom”
+      or the room buttons below</span></div>
+  </div>
+  <div id="right">
+    <div id="chat"></div>
+    <div id="issues"></div>
+    <div id="toolRow"></div>
+    <div id="composer">
+      <input id="input" placeholder="furnish the bedroom, scandinavian, budget 1500…" autofocus>
+      <button id="send">Send</button>
+    </div>
+  </div>
+</main>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+let busy = false;
+
+function applyState(s) {
+  $("projName").textContent = s.name;
+  $("budget").textContent = s.budget
+    ? `${Math.round(s.spent)} / ${Math.round(s.budget)} ${s.currency}`
+    : `${Math.round(s.spent)} ${s.currency} spent (no budget set)`;
+  $("planBox").innerHTML = s.svg;
+  $("issues").textContent = s.issues.join("\n");
+  const gallery = $("gallery");
+  gallery.innerHTML = "";
+  if (!s.room_images.length) {
+    gallery.innerHTML = '<span class="hint">room photos appear here</span>';
+  }
+  s.room_images.forEach(name => {
+    const img = document.createElement("img");
+    img.src = "/renders/rooms/" + name + "?t=" + Date.now();
+    img.title = name;
+    img.addEventListener("click", () => showOverlay(img.src));
+    gallery.append(img);
+  });
+  const tools = $("toolRow");
+  tools.innerHTML = "";
+  const undo = document.createElement("button");
+  undo.textContent = "↩ undo";
+  undo.addEventListener("click", async () => {
+    const r = await fetch("/api/undo", {method: "POST"});
+    applyState((await r.json()).state);
+  });
+  tools.append(undo);
+  s.rooms.forEach(room => {
+    const b = document.createElement("button");
+    b.textContent = "📷 " + room;
+    b.title = "generate a photo of " + room;
+    b.addEventListener("click", () => roomImage(room));
+    tools.append(b);
+  });
+}
+
+function addMsg(role, text, pending = false) {
+  const el = document.createElement("div");
+  el.className = "msg " + role + (pending ? " pending" : "");
+  el.textContent = text;
+  $("chat").append(el);
+  $("chat").scrollTop = $("chat").scrollHeight;
+  return el;
+}
+
+function showOverlay(src) {
+  const overlay = document.createElement("div");
+  overlay.id = "overlay";
+  const img = document.createElement("img");
+  img.src = src;
+  overlay.append(img);
+  overlay.addEventListener("click", () => overlay.remove());
+  document.body.append(overlay);
+}
+
+function setBusy(value) {
+  busy = value;
+  $("send").disabled = value;
+}
+
+async function send() {
+  const text = $("input").value.trim();
+  if (!text || busy) return;
+  $("input").value = "";
+  addMsg("user", text);
+  const pending = addMsg("assistant", "thinking…", true);
+  setBusy(true);
+  try {
+    const resp = await fetch("/api/message", {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({text})});
+    const body = await resp.json();
+    pending.remove();
+    addMsg("assistant", body.reply ?? body.error ?? "(no reply)");
+    if (body.state) applyState(body.state);
+  } catch (exc) {
+    pending.remove();
+    addMsg("assistant", "error: " + exc);
+  }
+  setBusy(false);
+}
+
+async function roomImage(room) {
+  if (busy) return;
+  const pending = addMsg("assistant", "photographing " + room + "…", true);
+  setBusy(true);
+  try {
+    const resp = await fetch("/api/room-image", {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({room})});
+    const body = await resp.json();
+    pending.remove();
+    if (body.error) addMsg("assistant", "error: " + body.error);
+    else {
+      addMsg("assistant", "here's " + room + " — click the thumbnail to enlarge");
+      applyState(body.state);
+      showOverlay(body.image + "?t=" + Date.now());
+    }
+  } catch (exc) {
+    pending.remove();
+    addMsg("assistant", "error: " + exc);
+  }
+  setBusy(false);
+}
+
+$("send").addEventListener("click", send);
+$("input").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+
+(async function init() {
+  const resp = await fetch("/api/state");
+  const s = await resp.json();
+  applyState(s);
+  (s.chat || []).forEach(entry => addMsg(entry.role, entry.text));
+  if (!(s.chat || []).length) {
+    addMsg("assistant",
+      "Hi! Tell me a budget and which room to furnish — e.g. \"set a budget of 1500\" then " +
+      "\"furnish the bedroom, scandinavian, cozy\". Use the 📷 buttons for room photos.");
+  }
+})();
+</script>
+</body>
+</html>
