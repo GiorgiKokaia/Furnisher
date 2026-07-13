@@ -87,12 +87,12 @@ Stretch goal: 2D→3D.
 
 ## Milestones
 
-- **M0 — Skeleton + plans on screen.** Repo scaffold (11), schema v0 (01), YAML authoring + SVG
-  preview of an empty plan (02, 06). *Exit: author my own apartment and see it rendered.*
-- **M1 — Catalog.** Provider protocol + cache + `generic` adapter + IKEA baseline adapter (03).
-  *Exit: CLI search returns real items with correct dimensions.*
-- **M2 — Manual furnishing.** Place cached items on the plan by hand (JSON edits are fine), layout
-  validation, furnished plan render (05, 06). *Exit: a believable furnished floor plan at scale.*
+- ~~**M0 — Skeleton + plans on screen.**~~ **Done** (plus the phase-2 GUI editor, pulled forward).
+- ~~**M1 — Catalog.**~~ **Done.** *Exit verified live: BILLY 0.80×0.28×2.02 m from the real IKEA
+  endpoints.*
+- ~~**M2 — Manual furnishing.**~~ **Done.** *Exit: `examples/my-apartment.placements.json` — 14
+  items at true scale in the real apartment, validates clean.* (Auto-placement + connectivity
+  check deliberately deferred to M3.)
 - **M3 — The agent.** Chat + inspiration images → style profile → item proposals → auto-placement
   (04, 05, 08 minimal CLI chat). *Exit: "furnish my bedroom, scandinavian, budget €800" works.*
 - **M4 — Room images.** Grounded Nano Banana renders per room (07). *Exit: bedroom image visibly

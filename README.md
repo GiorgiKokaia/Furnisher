@@ -33,14 +33,16 @@ task checklist so work can be resumed (by a human or an agent) without extra con
 
 ## Status
 
-**M0 done** — scaffold, floor plan schema (`furnisher.model`), YAML authoring with live SVG
-preview, empty-plan renderer, CLI, tests. Try it:
+**M0–M2 done** — schema, GUI plan editor, provider-agnostic catalog (generic + live IKEA
+adapters), layout validation, furnished plan rendering. Try it:
 
 ```
 uv sync
-uv run furnisher plan edit my-apartment.yaml        # browser GUI editor (creates the file on save)
-uv run furnisher plan preview my-apartment.yaml --watch   # or hand-edit YAML with live SVG
+uv run furnisher plan edit my-apartment.yaml              # browser GUI layout editor
+uv run furnisher catalog search "sofa" --max-price 400    # search real furniture (cached)
+uv run furnisher furnish validate my-apartment.yaml examples/my-apartment.placements.json
+uv run furnisher furnish render   my-apartment.yaml examples/my-apartment.placements.json
 ```
 
-Next: author the real apartment as a plan file, then Milestone M1 (catalog: provider protocol,
-cache, `generic` + IKEA adapters) — see `docs/00-architecture.md`.
+Next: **M3 — the design agent** (chat + inspiration images → item proposals → auto-placement).
+Blocked on a `GEMINI_API_KEY` in a repo-root `.env` file. See `docs/00-architecture.md`.
