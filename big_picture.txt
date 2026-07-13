@@ -1,0 +1,19 @@
+I want to build a tool that helps furnish bare bones apartments.
+
+Big picture: 
+
+Given a layout of an apartment that is completely empty, a mix of inspirational images, suggestions (maybe from a specialized design agent)
+and chat will let the user design their apartment just as they wish. 
+We will generate a furnished floor-plan (where items are placed with correct scales, for a start lets pull the items from IKEA search API) as well as
+images for each room, that are guided and grounded in reality using images pulled from same API.
+
+We will need some way of creating the floor-plans at first so we can manually adjust them. Room shapes, sizes, room types. Placement of doors, windows, etc.
+Maybe leave room for some standard import format of rooms in the future.
+
+Stretch goal would be 2D->3D
+
+For the rest, you figure out what we need. We will start the testing using my personal Gemini / Nanobana API key.
+
+Plan out all the different components that will be needed, and write an .md file for each needed part so its easy to resume in future / agents can figure out what they need.
+
+We will work in Python

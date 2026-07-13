@@ -1,0 +1,61 @@
+# 11 — Dev Setup & Conventions
+
+**Status:** done (M0 scaffold in place; `uv` invoked as `python -m uv` on this machine)
+
+## Stack
+
+- **Python 3.12+**, managed with **uv** (`uv init`, `uv add`, `uv run`). Windows is the primary
+  dev machine — keep dependencies Windows-friendly (watch out: `cairosvg` needs cairo; document
+  the install or prefer `resvg-py`).
+- Package layout: `src/` layout, single package `furnisher`, one subpackage per component doc:
+
+```
+pyproject.toml
+src/furnisher/
+  model/        # 01 schema + geometry
+  authoring/    # 02
+  catalog/      # 03
+  agent/        # 04 (+ prompts/)
+  llm/          # 04/07 provider wrapper
+  layout/       # 05
+  render2d/     # 06
+  render3d/     # 07 (2.5D for now)
+  app/          # 08 orchestration + CLI + (later) FastAPI
+  project/      # 09 persistence
+  cli.py        # `furnisher` entry point (typer)
+tests/
+  fixtures/     # plans, recorded API responses, golden SVGs
+experiments/    # gitignored scratch (esp. room-render iterations, 07)
+```
+
+## Core dependencies (add as needed, not all up front)
+
+`pydantic`, `shapely`, `httpx`, `pyyaml`, `typer`, `watchfiles`, `google-genai`, `svgwrite`,
+`pillow`, `fastapi`+`uvicorn` (M5), `pytest`.
+
+## Configuration & secrets
+
+- `GEMINI_API_KEY` from environment; also load a gitignored `.env` at repo root via
+  `pydantic-settings`. **Never** write the key into project files, logs, or docs.
+- A single `Settings` object (`furnisher/config.py`): api key, per-provider market settings
+  (e.g. IKEA `cc`/`lc`), cache dir (`~/.furnisher/`), model names. All model names live here,
+  nowhere else.
+- `.gitignore` from day one: `.env`, `experiments/`, `__pycache__/`, `*.egg-info`, `.venv/`.
+
+## Conventions
+
+- Every LLM/API-touching test runs against **recorded fixtures**; network access in tests is a
+  bug. Record real responses once per endpoint into `tests/fixtures/`.
+- CLI is the integration surface: each milestone's exit criterion is a `furnisher ...` command
+  that a human can run (see 00). Wire subcommands as components land.
+- Type hints everywhere; `ruff` for lint+format (`ruff check`, `ruff format`).
+- Keep component docs (`docs/*.md`) updated when reality diverges — they're the resume-point for
+  future sessions/agents. Update the **Status** line and check off tasks as they complete.
+
+## Tasks (M0 kickoff)
+
+- [x] pyproject (hatchling, src layout) + `uv sync`
+- [x] `.gitignore`, `.env` handling, `Settings` (`config.py`)
+- [x] `furnisher` typer entry point with `--version`
+- [x] `pytest` + `ruff` configured and passing
+- [x] First commit
