@@ -193,9 +193,11 @@ def _render_placement(placement, catalog, t: _Transform, style: RenderStyle) -> 
     poly = placement_polygon(placement, item)
     pts = list(poly.exterior.coords)[:4]
     parts = [
-        # thick round-join stroke fakes soft corners on the rotated rect
+        # thick round-join stroke fakes soft corners on the rotated rect;
+        # data-pid makes pieces clickable in the web app
         f'<polygon points="{_points_attr(pts, t)}" fill="{_placement_fill(item)}" '
-        'fill-opacity="0.94" stroke="#7a6a55" stroke-width="2" stroke-linejoin="round"/>'
+        f'fill-opacity="0.94" stroke="#7a6a55" stroke-width="2" stroke-linejoin="round" '
+        f'data-pid="{html.escape(placement.id)}"/>'
     ]
     cx, cy = poly.centroid.x, poly.centroid.y
     # front tick: shows orientation (front = local -y at rotation 0)

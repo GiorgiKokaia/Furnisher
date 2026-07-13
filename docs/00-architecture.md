@@ -100,9 +100,9 @@ Stretch goal: 2D→3D.
 - ~~**M4 — Room images.**~~ **Done.** *Exit verified live: bedroom render visibly contains the
   actual MALM bed, PAX wardrobe and MALM nightstand in planned positions; feedback re-roll
   keeps products while changing mood.*
-- ~~**M5 — Usable app.**~~ **Mostly done** — `furnisher app <project>`: plan + chat side by
-  side, room-photo gallery, undo, budget header. Still pending: click/drag-to-adjust
-  placements in the web UI (the GUI *plan* editor exists separately via `plan edit`).
+- ~~**M5 — Usable app.**~~ **Done** — `furnisher app <project>`: plan + chat side by side,
+  room-photo gallery, undo, budget header, style tags, IKEA inspiration pull, and
+  click-to-adjust placements (nudge/rotate/delete with live server-side validation).
 - **Stretch — 3D** (10).
 
 ## Open questions (park here, answer when relevant)

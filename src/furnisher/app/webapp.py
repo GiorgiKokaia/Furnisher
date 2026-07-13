@@ -55,6 +55,16 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
             "currency": project.meta.get("currency", "EUR"),
             "spent": project.spent(catalog),
             "rooms": [r.id for r in project.plan.rooms],
+            "placements": [
+                {
+                    "id": p.id,
+                    "room": p.room,
+                    "item": catalog.get(p.item_ref).name,
+                    "position": list(p.position),
+                    "rotation": p.rotation,
+                }
+                for p in project.placements
+            ],
             "svg": render_plan(project.plan, placements=project.placements, catalog=catalog),
             "shopping_list": orch.shopping_list(),
             "issues": [str(i) for i in issues],
@@ -87,6 +97,40 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
         ok = orch.project.undo()
         orch.render_svg()
         return {"ok": ok, "state": state()}
+
+    @app.post("/api/placement")
+    def placement_edit(body: dict):
+        """Move/rotate/delete one placed item, validated live (docs/08 click-to-adjust)."""
+        pid = body.get("id")
+        action = body.get("action")
+        project = orch.project
+        current = next((p for p in project.placements if p.id == pid), None)
+        if current is None or action not in ("move", "rotate", "delete"):
+            return JSONResponse({"error": f"unknown placement {pid!r} or action"}, status_code=400)
+        if action == "delete":
+            trial = [p for p in project.placements if p.id != pid]
+        else:
+            changed = current.model_copy(deep=True)
+            if action == "move":
+                changed.position = (
+                    round(changed.position[0] + float(body.get("dx", 0)), 3),
+                    round(changed.position[1] + float(body.get("dy", 0)), 3),
+                )
+            else:
+                changed.rotation = (changed.rotation + 90) % 360
+            trial = [changed if p.id == pid else p for p in project.placements]
+            errors = [
+                i
+                for i in validate(project.plan, trial, catalog)
+                if i.severity == "error" and pid in i.placements
+            ]
+            if errors:
+                return {"ok": False, "error": errors[0].message, "state": state()}
+        project.snapshot()
+        project.placements = trial
+        project.save()
+        orch.render_svg()
+        return {"ok": True, "state": state()}
 
     @app.post("/api/inspire-ikea")
     def inspire_ikea(body: dict):

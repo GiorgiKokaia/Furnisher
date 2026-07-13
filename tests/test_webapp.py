@@ -66,3 +66,31 @@ def test_room_image_requires_placements(client):
 
 def test_index(client):
     assert "Furnisher" in client.get("/").text
+
+
+def test_placement_move_and_delete(client):
+    client.post("/api/message", json={"text": "furnish the first bedroom"})
+    state = client.get("/api/state").json()
+    assert 'data-pid="bed"' in state["svg"]
+    bed = next(p for p in state["placements"] if p["id"] == "bed")
+
+    # nudge 10cm toward the room center (bedroom-1 center is (2.25, 5.5)) — always legal
+    dx = 0.1 if bed["position"][0] < 2.25 else -0.1
+    dy = 0.1 if bed["position"][1] < 5.5 else -0.1
+    body = client.post(
+        "/api/placement", json={"id": "bed", "action": "move", "dx": dx, "dy": dy}
+    ).json()
+    assert body["ok"] is True
+    moved = next(p for p in body["state"]["placements"] if p["id"] == "bed")
+    assert moved["position"] != bed["position"]
+
+    body = client.post("/api/placement", json={"id": "bed", "action": "move", "dx": 50}).json()
+    assert body["ok"] is False  # 50m east is not in the room
+    assert "does not fit" in body["error"]
+
+    body = client.post("/api/placement", json={"id": "bed", "action": "delete"}).json()
+    assert body["ok"] is True
+    assert body["state"]["spent"] == 0
+
+    resp = client.post("/api/placement", json={"id": "ghost", "action": "move"})
+    assert resp.status_code == 400

@@ -44,6 +44,17 @@
   #issues { padding: 6px 12px; font-size: 12px; color: #8a3b34; background: #fdf0ef;
             border-top: 1px solid #e8c5c2; max-height: 90px; overflow-y: auto; }
   #issues:empty { display: none; }
+  #planBox [data-pid] { cursor: pointer; }
+  /* labels and ticks must not swallow clicks meant for the piece under them */
+  #planBox text, #planBox polyline { pointer-events: none; }
+  #planBox [data-pid].selected { stroke: #d97706; stroke-width: 3.5; }
+  #pieceBar { position: absolute; display: flex; gap: 4px; background: #2f2a26; padding: 6px;
+              border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 5; }
+  #pieceBar button { background: #4a433e; border: 0; color: #eee; border-radius: 6px;
+                     padding: 5px 9px; cursor: pointer; font-size: 14px; }
+  #pieceBar button:hover { background: #6b5b46; }
+  #pieceBar .name { color: #d9c9a8; font-size: 12px; align-self: center; padding: 0 6px; }
+  #left { position: relative; }
   #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex;
              align-items: center; justify-content: center; z-index: 10; }
   #overlay img { max-width: 94vw; max-height: 94vh; border-radius: 8px; }
@@ -77,6 +88,80 @@
 "use strict";
 const $ = id => document.getElementById(id);
 let busy = false;
+let selectedPid = null;
+
+// --- click-to-adjust placements ---
+function attachPieceHandlers() {
+  document.querySelectorAll("#planBox [data-pid]").forEach(el => {
+    el.addEventListener("click", e => {
+      e.stopPropagation();
+      selectPiece(el.getAttribute("data-pid"));
+    });
+  });
+  highlightSelected();
+}
+
+function highlightSelected() {
+  document.querySelectorAll("#planBox [data-pid]").forEach(el =>
+    el.classList.toggle("selected", el.getAttribute("data-pid") === selectedPid));
+  const bar = $("pieceBar");
+  if (bar) bar.remove();
+  if (!selectedPid) return;
+  const el = document.querySelector(`#planBox [data-pid="${selectedPid}"]`);
+  if (!el) { selectedPid = null; return; }
+  const bar2 = document.createElement("div");
+  bar2.id = "pieceBar";
+  const name = document.createElement("span");
+  name.className = "name";
+  name.textContent = selectedPid;
+  bar2.append(name);
+  const actions = [
+    ["←", () => movePiece(-0.1, 0)], ["→", () => movePiece(0.1, 0)],
+    ["↑", () => movePiece(0, 0.1)], ["↓", () => movePiece(0, -0.1)],
+    ["⟳", () => pieceAction({action: "rotate"})],
+    ["🗑", () => pieceAction({action: "delete"})],
+    ["✕", () => selectPiece(null)],
+  ];
+  actions.forEach(([label, fn]) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.addEventListener("click", fn);
+    bar2.append(b);
+  });
+  const box = el.getBoundingClientRect();
+  const left = $("left").getBoundingClientRect();
+  document.getElementById("left").append(bar2);
+  bar2.style.left = Math.max(6, box.left - left.left) + "px";
+  bar2.style.top = Math.max(6, box.top - left.top - 44) + "px";
+}
+
+function selectPiece(pid) {
+  selectedPid = pid === selectedPid ? null : pid;
+  highlightSelected();
+}
+
+function movePiece(dx, dy) { pieceAction({action: "move", dx, dy}); }
+
+async function pieceAction(payload) {
+  if (!selectedPid || busy) return;
+  const resp = await fetch("/api/placement", {method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({id: selectedPid, ...payload})});
+  const body = await resp.json();
+  if (body.error && !body.state) { addMsg("assistant", "error: " + body.error); return; }
+  if (payload.action === "delete") selectedPid = null;
+  if (body.error) addMsg("assistant", "⚠ " + body.error);
+  applyState(body.state);
+}
+
+window.addEventListener("keydown", e => {
+  if (!selectedPid || ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
+  const map = {ArrowLeft: [-0.1, 0], ArrowRight: [0.1, 0], ArrowUp: [0, 0.1], ArrowDown: [0, -0.1]};
+  if (map[e.key]) { e.preventDefault(); movePiece(...map[e.key]); }
+  else if (e.key === "r") pieceAction({action: "rotate"});
+  else if (e.key === "Delete") pieceAction({action: "delete"});
+  else if (e.key === "Escape") selectPiece(null);
+});
 
 function applyState(s) {
   $("projName").textContent = s.name;
@@ -92,6 +177,7 @@ function applyState(s) {
     ? `${Math.round(s.spent)} / ${Math.round(s.budget)} ${s.currency}`
     : `${Math.round(s.spent)} ${s.currency} spent (no budget set)`;
   $("planBox").innerHTML = s.svg;
+  attachPieceHandlers();
   $("issues").textContent = s.issues.join("\n");
   const gallery = $("gallery");
   gallery.innerHTML = "";

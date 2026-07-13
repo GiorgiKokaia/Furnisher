@@ -2,7 +2,9 @@
 
 **Status:** stage 1 + stage 2 built — `furnisher chat` REPL and `furnisher app` web UI
 (`app/webapp.py` + `app/app.html`): furnished plan + chat side by side, room-photo gallery,
-per-room camera buttons, undo, budget header. Drag-to-adjust placements still pending.
+per-room camera buttons, undo, budget header. Click-to-adjust placements: click a piece on the plan (SVG carries data-pid), floating
+toolbar + arrow keys nudge 10 cm, r rotates, Del deletes — every edit validated server-side
+and rejected with the LayoutIssue message when illegal.
 **Depends on:** all of 01–07 (this is the integration layer)
 **Code home:** `src/furnisher/app/`
 
