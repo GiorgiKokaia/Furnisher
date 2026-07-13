@@ -1,0 +1,120 @@
+{
+ "searchResultPage": {
+  "products": {
+   "main": {
+    "items": [
+     {
+      "product": {
+       "mainImageUrl": "https://www.ikea.com/de/de/images/products/vimle-3er-sofa-mit-recamiere-gunnared-mittelgrau__0514362_pe639437_s5.jpg",
+       "pipUrl": "https://www.ikea.com/de/de/p/vimle-3er-sofa-mit-recamiere-gunnared-mittelgrau-s39399112/",
+       "id": "s39399112",
+       "itemType": "SPR",
+       "contextualImageUrl": "https://www.ikea.com/de/de/images/products/vimle-3er-sofa-mit-recamiere-gunnared-mittelgrau__0778310_pe758883_s5.jpg",
+       "itemNo": "39399112",
+       "name": "VIMLE",
+       "salesPrice": {
+        "currencyCode": "EUR",
+        "numeral": 799.0,
+        "current": {
+         "prefix": "",
+         "wholeNumber": "799",
+         "separator": ".",
+         "decimals": "00",
+         "suffix": "€",
+         "isRegularCurrency": true,
+         "style": "BASE"
+        },
+        "isBreathTaking": false,
+        "discount": "",
+        "tag": "NONE",
+        "priceText": "Preis",
+        "tags": [],
+        "tagWithText": {
+         "tag": "NONE"
+        }
+       },
+       "itemMeasureReferenceText": "",
+       "typeName": "3er-Sofa"
+      }
+     },
+     {
+      "product": {
+       "mainImageUrl": "https://www.ikea.com/de/de/images/products/glostad-3er-sofa-knisa-dunkelgrau__1234948_pe917261_s5.jpg",
+       "pipUrl": "https://www.ikea.com/de/de/p/glostad-3er-sofa-knisa-dunkelgrau-40573285/",
+       "id": "40573285",
+       "itemType": "ART",
+       "contextualImageUrl": "https://www.ikea.com/de/de/images/products/glostad-3er-sofa-knisa-dunkelgrau__1235175_pe917294_s5.jpg",
+       "itemNo": "40573285",
+       "name": "GLOSTAD",
+       "salesPrice": {
+        "currencyCode": "EUR",
+        "numeral": 129.0,
+        "current": {
+         "prefix": "",
+         "wholeNumber": "129",
+         "separator": ".",
+         "decimals": "00",
+         "suffix": "€",
+         "isRegularCurrency": true,
+         "style": "BASE"
+        },
+        "isBreathTaking": true,
+        "discount": "",
+        "tag": "NONE",
+        "priceText": "Preis",
+        "tags": [],
+        "tagWithText": {
+         "tag": "NONE"
+        }
+       },
+       "itemMeasureReferenceText": "",
+       "typeName": "3er-Sofa"
+      }
+     }
+    ]
+   },
+   "shelves": [
+    {
+     "result": {
+      "items": [
+       {
+        "product": {
+         "mainImageUrl": "https://www.ikea.com/de/de/images/products/vimle-3er-bettsofa-mit-recamiere-gunnared-beige__0686179_pe721666_s5.jpg",
+         "pipUrl": "https://www.ikea.com/de/de/p/vimle-3er-bettsofa-mit-recamiere-gunnared-beige-s19545242/",
+         "id": "s19545242",
+         "itemType": "SPR",
+         "contextualImageUrl": "https://www.ikea.com/de/de/images/products/vimle-3er-bettsofa-mit-recamiere-gunnared-beige__0778309_pe758882_s5.jpg",
+         "itemNo": "19545242",
+         "name": "VIMLE",
+         "salesPrice": {
+          "currencyCode": "EUR",
+          "numeral": 1149.0,
+          "current": {
+           "prefix": "",
+           "wholeNumber": "1.149",
+           "separator": ".",
+           "decimals": "00",
+           "suffix": "€",
+           "isRegularCurrency": true,
+           "style": "BASE"
+          },
+          "isBreathTaking": false,
+          "discount": "",
+          "tag": "NONE",
+          "priceText": "Preis",
+          "tags": [],
+          "tagWithText": {
+           "tag": "NONE"
+          }
+         },
+         "itemMeasureReferenceText": "",
+         "typeName": "3er-Bettsofa mit Récamiere"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  }
+ }
+}

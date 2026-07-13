@@ -1,6 +1,7 @@
 # 03 — Furniture Catalog (provider-agnostic)
 
-**Status:** not started
+**Status:** M1 built — facade + cache + `generic` (18-item starter) + `ikea` adapters,
+`furnisher catalog search/show` CLI
 **Depends on:** nothing (01 references its item ids)
 **Code home:** `src/furnisher/catalog/`
 
@@ -60,13 +61,24 @@ Items missing a footprint are rejected at the boundary — the layout engine nev
 
 ## Adapters
 
-### `ikea` (first, baseline)
+### `ikea` (first, baseline) — BUILT, endpoints verified 2026-07-13
 
-No official public API. Community-known unofficial endpoints (verify before building):
-search via `https://sik.search.blue.cdtapps.com/{cc}/{lc}/search-box?q=...`; full dimensions and
-image sets from the JSON-LD / data blobs embedded in product pages as fallback. Isolate all
-endpoint knowledge in `catalog/adapters/ikea.py`, be a polite client (≥1s between requests,
-honest UA, cache hard). Timebox this — it's a baseline, not the product.
+Spike findings (all endpoint knowledge lives in `catalog/adapters/ikea.py`):
+
+- **Search:** `GET https://sik.search.blue.cdtapps.com/{cc}/{lc}/search-result-page?q=...&types=PRODUCT&size=N`
+  → `searchResultPage.products.main.items[].product` (+ `shelves[].result.items[]`). Has name,
+  `typeName`, `itemNo`, `salesPrice.numeral/currencyCode`, `mainImageUrl`/`contextualImageUrl`,
+  `pipUrl`. The old `/search` path 404s; `/search-box` is autocomplete only.
+  **No assembled dimensions in search results** (`itemMeasureReferenceText` was empty on all hits).
+- **Dimensions:** product (PIP) page HTML embeds hydration JSON:
+  `"measurements": [{"measure": "171 cm", "name": "Breite", "type": "00047"}, ...]`.
+  Type codes are language-independent: `00047` width, `00044` depth, `00041` height;
+  fallback to max of `00413` (backrest) / `00138` (armrest) / `00039` (seat height) for items
+  with no overall height (e.g. GLOSTAD sofa). Beware the *package* measurements blobs on the
+  same page (label/value shape, flat-pack box dims) — the parser only reads typed entries.
+- **Cost model:** one PIP fetch per item for dims → search keeps candidates ≤ limit, pre-filters
+  on price from search data, throttles ≥1s/request. Cached forever after first fetch.
+- Recorded fixtures: `tests/fixtures/ikea/` (trimmed real search JSON + measurement blobs).
 
 ### `generic` (build alongside, it's ~free)
 
@@ -93,13 +105,15 @@ Sources list dimensions per-variant, in cm, sometimes assembled vs. packaging. A
 
 ## Tasks
 
-- [ ] `CatalogItem`, `SearchFilters`, `CatalogProvider` protocol, `Catalog` facade + post-filtering
-- [ ] SQLite cache + image downloader (provider-agnostic)
-- [ ] `generic` adapter + a starter file with ~15 realistic items (unblocks 04–07)
-- [ ] `ikea` adapter spike: verify endpoints end-to-end for one market, record findings here
-- [ ] `ikea` adapter: search + product detail + images (timeboxed)
-- [ ] `furnisher catalog search "sofa" --max-price 400` CLI (M1 exit criterion)
-- [ ] Tests against recorded fixtures only (no network in tests)
+- [x] `CatalogItem`, `SearchFilters`, `CatalogProvider` protocol, `Catalog` facade + post-filtering
+- [x] SQLite cache + image downloader (provider-agnostic)
+- [x] `generic` adapter + starter file with 18 realistic items (`catalog/data/generic_catalog.json`;
+      user extension point: `~/.furnisher/generic.json`)
+- [x] `ikea` adapter spike: endpoints verified end-to-end for de/de, findings above
+- [x] `ikea` adapter: search + dims + images, throttled
+- [x] `furnisher catalog search "sofa" --max-price 400` CLI (M1 exit verified live:
+      BILLY 0.80×0.28×2.02 m, 50 EUR)
+- [x] Tests against recorded fixtures only (no network in tests)
 
 ## Open questions
 

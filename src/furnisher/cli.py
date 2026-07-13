@@ -13,6 +13,8 @@ from furnisher.render2d import render_plan
 app = typer.Typer(help="Furnisher — chat-driven apartment furnishing.", no_args_is_help=True)
 plan_app = typer.Typer(help="Floor plan authoring.", no_args_is_help=True)
 app.add_typer(plan_app, name="plan")
+catalog_app = typer.Typer(help="Furniture catalog search.", no_args_is_help=True)
+app.add_typer(catalog_app, name="catalog")
 
 
 def _version_callback(value: bool) -> None:
@@ -107,6 +109,39 @@ def edit(
         threading.Timer(0.8, webbrowser.open, args=(url,)).start()
     typer.echo(f"editing {plan_file} at {url} (Ctrl+C to stop)")
     uvicorn.run(create_app(plan_file), host="127.0.0.1", port=port, log_level="warning")
+
+
+@catalog_app.command("search")
+def catalog_search(
+    query: str = typer.Argument(...),
+    max_price: float | None = typer.Option(None, "--max-price"),
+    max_width: float | None = typer.Option(None, "--max-width", help="meters"),
+    max_depth: float | None = typer.Option(None, "--max-depth", help="meters"),
+    max_height: float | None = typer.Option(None, "--max-height", help="meters"),
+    provider: str | None = typer.Option(None, "--provider", help="generic | ikea"),
+    limit: int = typer.Option(8, "--limit", "-n"),
+) -> None:
+    """Search all catalog providers (results are cached in ~/.furnisher/)."""
+    from furnisher.catalog import SearchFilters, default_catalog
+
+    filters = SearchFilters(
+        price_max=max_price, max_width_m=max_width, max_depth_m=max_depth, max_height_m=max_height
+    )
+    items = default_catalog().search(query, filters, provider=provider, limit=limit)
+    if not items:
+        typer.echo("no results")
+        raise typer.Exit(code=1)
+    for item in items:
+        typer.echo(item.summary())
+
+
+@catalog_app.command("show")
+def catalog_show(item_id: str = typer.Argument(..., help="e.g. generic:loft-sofa-3")) -> None:
+    """Show one catalog item (cache-first)."""
+    from furnisher.catalog import default_catalog
+
+    item = default_catalog().get(item_id)
+    typer.echo(item.model_dump_json(indent=2, exclude={"raw"}))
 
 
 if __name__ == "__main__":
