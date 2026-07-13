@@ -127,6 +127,17 @@ class FloorPlan(BaseModel):
                     "(reverse the vertex order)"
                 )
 
+        for i, room_a in enumerate(self.rooms):
+            for room_b in self.rooms[i + 1 :]:
+                poly_a, poly_b = room_a.shapely_polygon(), room_b.shapely_polygon()
+                if not (poly_a.is_valid and poly_b.is_valid):
+                    continue
+                overlap = poly_a.intersection(poly_b).area
+                if overlap > 1e-4:  # shared walls touch with zero area; anything more is overlap
+                    errors.append(
+                        f"rooms {room_a.id!r} and {room_b.id!r} overlap ({overlap:.2f} m²)"
+                    )
+
         for op in self.openings:
             if op.room not in room_ids:
                 errors.append(f"opening {op.id!r}: unknown room {op.room!r}")
@@ -168,4 +179,17 @@ class FloorPlan(BaseModel):
                                 f"opening {op.id!r}: rooms {op.room!r} and {op.connects!r} "
                                 "are not adjacent at this opening"
                             )
+
+        by_edge: dict[tuple[str, int], list[Opening]] = {}
+        for op in self.openings:
+            if op.room in room_ids and 0 <= op.edge < len(self.room(op.room).polygon):
+                by_edge.setdefault((op.room, op.edge), []).append(op)
+        for (room_id, edge), ops in by_edge.items():
+            ops.sort(key=lambda o: o.offset)
+            for prev, nxt in zip(ops, ops[1:]):
+                if prev.offset + prev.width > nxt.offset + 1e-6:
+                    errors.append(
+                        f"openings {prev.id!r} and {nxt.id!r} overlap "
+                        f"on edge {edge} of room {room_id!r}"
+                    )
         return errors

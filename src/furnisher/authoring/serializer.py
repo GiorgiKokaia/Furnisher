@@ -27,7 +27,8 @@ def _as_rect(polygon: list[tuple[float, float]]) -> list[float] | None:
     w, h = x1 - x0, y2 - y1
     if w <= 0 or h <= 0:
         return None
-    return [x0, y0, w, h]
+    # subtraction reintroduces float noise even on rounded vertices (10.55 - 4.0 -> 6.55000...01)
+    return [x0, y0, _r(w), _r(h)]
 
 
 def plan_to_dict(plan: FloorPlan) -> dict:

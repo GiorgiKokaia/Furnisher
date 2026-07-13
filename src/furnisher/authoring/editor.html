@@ -363,6 +363,11 @@ function addOpeningAt(edgeHit, kind) {
   const width = DEFAULT_WIDTHS[kind];
   const L = edgeLen(room, edgeHit.edge);
   if (L < width) { flash("wall too short for a " + kind); return; }
+  const start = Math.max(0, Math.min(L - width, edgeHit.t * L - width / 2));
+  const clash = (plan.openings || []).find(o =>
+    o.room === room.id && o.edge === edgeHit.edge &&
+    start < o.offset + o.width && o.offset < start + width);
+  if (clash) { flash("overlaps " + clash.id + " — drag it or pick another spot"); return; }
   const op = {
     id: freshId(kind), kind, room: room.id, edge: edgeHit.edge,
     offset: snap(Math.max(0, Math.min(L - width, edgeHit.t * L - width / 2))),

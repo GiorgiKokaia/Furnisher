@@ -127,3 +127,73 @@ def test_opening_segment(studio):
     # bathroom edge 3 runs (5,2.2)->(5,0); offset 0.6, width 0.8 -> y 1.6 down to 0.8
     assert a == (5.0, 2.2 - 0.6)
     assert abs(b[1] - 0.8) < 1e-9
+
+
+def test_overlapping_rooms_rejected():
+    plan = _plan(
+        rooms=[
+            {"id": "a", "type": "other", "polygon": [[0, 0], [4, 0], [4, 3], [0, 3]]},
+            {"id": "b", "type": "other", "polygon": [[3.5, 0], [7, 0], [7, 3], [3.5, 3]]},
+        ]
+    )
+    assert any("overlap" in e and "rooms" in e for e in plan.validate_plan())
+
+
+def test_touching_rooms_not_flagged_as_overlap(two_bedroom):
+    assert not any("rooms" in e and "overlap" in e for e in two_bedroom.validate_plan())
+
+
+def test_overlapping_openings_on_same_wall_rejected():
+    plan = _plan(
+        openings=[
+            {
+                "id": "d1",
+                "kind": "door",
+                "room": "a",
+                "edge": 1,
+                "offset": 0.5,
+                "width": 0.9,
+                "connects": "b",
+                "swing": "inward_left",
+            },
+            {
+                "id": "d2",
+                "kind": "door",
+                "room": "a",
+                "edge": 1,
+                "offset": 1.0,
+                "width": 0.9,
+                "connects": "b",
+                "swing": "inward_left",
+            },
+        ]
+    )
+    assert any("d1" in e and "d2" in e and "overlap" in e for e in plan.validate_plan())
+
+
+def test_adjacent_openings_on_same_wall_ok():
+    plan = _plan(
+        openings=[
+            {
+                "id": "d1",
+                "kind": "door",
+                "room": "a",
+                "edge": 1,
+                "offset": 0.2,
+                "width": 0.9,
+                "connects": "b",
+                "swing": "inward_left",
+            },
+            {
+                "id": "d2",
+                "kind": "door",
+                "room": "a",
+                "edge": 1,
+                "offset": 1.5,
+                "width": 0.9,
+                "connects": "b",
+                "swing": "inward_left",
+            },
+        ]
+    )
+    assert plan.validate_plan() == []

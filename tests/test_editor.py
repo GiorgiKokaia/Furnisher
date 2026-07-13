@@ -101,3 +101,20 @@ def test_serializer_keeps_polygon_when_order_not_canonical():
     data = plan_to_dict(plan)
     assert "polygon" in data["rooms"][0]
     assert "rect" not in data["rooms"][0]
+
+
+def test_serializer_rect_has_no_float_noise():
+    plan = FloorPlan.model_validate(
+        {
+            "name": "t",
+            "rooms": [
+                {
+                    "id": "a",
+                    "type": "other",
+                    "polygon": [[4.0, -3.0], [10.55, -3.0], [10.55, -0.8], [4.0, -0.8]],
+                }
+            ],
+        }
+    )
+    rect = plan_to_dict(plan)["rooms"][0]["rect"]
+    assert rect == [4.0, -3.0, 6.55, 2.2]
