@@ -188,6 +188,26 @@ class IkeaProvider:
                 items.append(item)
         return items
 
+    def inspiration_images(self, query: str, limit: int = 4) -> list[dict]:
+        """Styled lifestyle room photos: the contextualImageUrl on product search hits.
+
+        (IKEA's /rooms/ gallery exists but is a JS app with no query API — the per-product
+        contextual shots are the reliable, query-driven inspiration source.)"""
+        products = self._search_raw(query, size=max(limit * 3, 12))
+        seen: set[str] = set()
+        photos = []
+        for product in products:
+            url = product.get("contextualImageUrl")
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            photos.append(
+                {"url": url, "title": product.get("contextualImageAlt") or product.get("name", "")}
+            )
+            if len(photos) >= limit:
+                break
+        return photos
+
     def get(self, item_id: str) -> CatalogItem:
         item_no = item_id.split(":", 1)[1]
         for product in self._search_raw(item_no, size=8):

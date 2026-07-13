@@ -139,21 +139,51 @@ def render_plan(
         for p in placements:
             parts.extend(_render_placement(p, catalog, t, style))
 
-    # Labels last, on top of everything.
+    # Labels last, on top of everything. With furniture present, labels move to the room's
+    # top-left corner so they don't sit on top of the pieces.
     for room in plan.rooms:
-        cx, cy = t(geometry.centroid(room.polygon))
-        parts.append(
-            f'<text x="{_fmt(cx)}" y="{_fmt(cy)}" text-anchor="middle" '
-            f'fill="{style.label_color}" font-size="14" font-weight="600">'
-            f"{html.escape(room.label())}</text>"
-        )
-        parts.append(
-            f'<text x="{_fmt(cx)}" y="{_fmt(cy + 16)}" text-anchor="middle" '
-            f'fill="{style.sublabel_color}" font-size="11">{_dims_label(room)}</text>'
-        )
+        if placements:
+            xs = [p[0] for p in room.polygon]
+            ys = [p[1] for p in room.polygon]
+            lx, ly = t((min(xs) + 0.14, max(ys) - 0.12))
+            parts.append(
+                f'<text x="{_fmt(lx)}" y="{_fmt(ly + 10)}" fill="{style.label_color}" '
+                f'font-size="11" font-weight="600">{html.escape(room.label())} '
+                f'<tspan fill="{style.sublabel_color}" font-weight="400" font-size="10">'
+                f"{_dims_label(room)}</tspan></text>"
+            )
+        else:
+            cx, cy = t(geometry.centroid(room.polygon))
+            parts.append(
+                f'<text x="{_fmt(cx)}" y="{_fmt(cy)}" text-anchor="middle" '
+                f'fill="{style.label_color}" font-size="14" font-weight="600">'
+                f"{html.escape(room.label())}</text>"
+            )
+            parts.append(
+                f'<text x="{_fmt(cx)}" y="{_fmt(cy + 16)}" text-anchor="middle" '
+                f'fill="{style.sublabel_color}" font-size="11">{_dims_label(room)}</text>'
+            )
 
     parts.append("</svg>")
     return "\n".join(parts)
+
+
+_PLACEMENT_TINTS = [
+    (("bed",), "#e6edf8"),
+    (("sofa", "armchair", "loveseat"), "#f8efe2"),
+    (("wardrobe", "dresser", "cabinet", "chest", "bookcase", "bookshelf", "shelf"), "#efe9e1"),
+    (("table", "desk", "bench"), "#f7f4ec"),
+    (("lamp", "light"), "#fdf3da"),
+    (("chair", "stool"), "#f3f1ea"),
+]
+
+
+def _placement_fill(item) -> str:
+    haystack = f"{item.type_name} {item.name}".lower()
+    for keywords, color in _PLACEMENT_TINTS:
+        if any(k in haystack for k in keywords):
+            return color
+    return "#fbf9f3"
 
 
 def _render_placement(placement, catalog, t: _Transform, style: RenderStyle) -> list[str]:
@@ -163,8 +193,9 @@ def _render_placement(placement, catalog, t: _Transform, style: RenderStyle) -> 
     poly = placement_polygon(placement, item)
     pts = list(poly.exterior.coords)[:4]
     parts = [
-        f'<polygon points="{_points_attr(pts, t)}" fill="#fbf9f3" fill-opacity="0.9" '
-        'stroke="#7a6a55" stroke-width="1.5"/>'
+        # thick round-join stroke fakes soft corners on the rotated rect
+        f'<polygon points="{_points_attr(pts, t)}" fill="{_placement_fill(item)}" '
+        'fill-opacity="0.94" stroke="#7a6a55" stroke-width="2" stroke-linejoin="round"/>'
     ]
     cx, cy = poly.centroid.x, poly.centroid.y
     # front tick: shows orientation (front = local -y at rotation 0)
@@ -173,15 +204,24 @@ def _render_placement(placement, catalog, t: _Transform, style: RenderStyle) -> 
     tick_from = (cx + front[0] * d * 0.45, cy + front[1] * d * 0.45)
     tick_to = (cx + front[0] * d * 0.95, cy + front[1] * d * 0.95)
     parts.append(_polyline([tick_from, tick_to], t, "#b0a08a", 1.5))
+
+    # labels only where they fit; rotate along tall narrow items; nothing on tiny ones
+    min_x, min_y, max_x, max_y = poly.bounds
+    ext_x = (max_x - min_x) * style.scale
+    ext_y = (max_y - min_y) * style.scale
+    if max(ext_x, ext_y) < 34:
+        return parts
     sx, sy = t((cx, cy))
+    transform = f' transform="rotate(-90 {_fmt(sx)} {_fmt(sy)})"' if ext_y > ext_x * 1.4 else ""
     parts.append(
         f'<text x="{_fmt(sx)}" y="{_fmt(sy)}" text-anchor="middle" fill="#5d5142" '
-        f'font-size="9">{html.escape(item.name)}</text>'
+        f'font-size="9"{transform}>{html.escape(item.name)}</text>'
     )
-    parts.append(
-        f'<text x="{_fmt(sx)}" y="{_fmt(sy + 10)}" text-anchor="middle" fill="#9a8d78" '
-        f'font-size="8">{item.width_m * 100:.0f}×{item.depth_m * 100:.0f}</text>'
-    )
+    if min(ext_x, ext_y) >= 46:
+        parts.append(
+            f'<text x="{_fmt(sx)}" y="{_fmt(sy + 10)}" text-anchor="middle" fill="#9a8d78" '
+            f'font-size="8"{transform}>{item.width_m * 100:.0f}×{item.depth_m * 100:.0f}</text>'
+        )
     return parts
 
 

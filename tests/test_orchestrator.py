@@ -93,3 +93,28 @@ def test_undo_restores_placements(orch):
     assert orch.project.placements
     assert orch.project.undo() is True
     assert orch.project.placements == []
+
+
+def test_inspire_from_ikea(orch, monkeypatch):
+    class FakeIkea:
+        provider_id = "ikea"
+
+        def inspiration_images(self, query, limit=4):
+            return [
+                {"url": "https://x/1.jpg", "title": "a"},
+                {"url": "https://x/2.jpg", "title": "b"},
+            ]
+
+        def search(self, query, filters, limit=24):
+            return []
+
+        def get(self, item_id):
+            raise KeyError(item_id)
+
+    orch.catalog.providers["ikea"] = FakeIkea()
+    monkeypatch.setattr(Orchestrator, "_download_image", staticmethod(lambda url: b"jpegbytes"))
+    reply = orch.inspire_from_ikea("scandinavian bedroom")
+    assert "pulled 2 IKEA photos" in reply
+    saved = list((orch.project.path / "inspiration").glob("ikea-*.jpg"))
+    assert len(saved) == 2
+    assert orch.project.meta["style_profile"]["style_tags"] == ["scandinavian"]

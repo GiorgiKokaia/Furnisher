@@ -47,8 +47,10 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
             if rooms_dir.is_dir()
             else []
         )
+        style = project.meta.get("style_profile") or {}
         return {
             "name": project.meta["name"],
+            "style_tags": style.get("style_tags", []),
             "budget": project.meta.get("budget"),
             "currency": project.meta.get("currency", "EUR"),
             "spent": project.spent(catalog),
@@ -85,6 +87,15 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
         ok = orch.project.undo()
         orch.render_svg()
         return {"ok": ok, "state": state()}
+
+    @app.post("/api/inspire-ikea")
+    def inspire_ikea(body: dict):
+        query = (body.get("query") or "").strip()
+        if not query:
+            return JSONResponse({"error": "empty query"}, status_code=400)
+        reply = orch.inspire_from_ikea(query, body.get("notes", ""))
+        orch.project.append_chat("assistant", reply)
+        return {"reply": reply, "state": state()}
 
     @app.post("/api/room-image")
     def room_image(body: dict):

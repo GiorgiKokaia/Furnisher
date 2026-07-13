@@ -64,14 +64,50 @@ class Orchestrator:
         self._mutated()
         return f"budget set to {amount:.0f} {self.project.meta.get('currency', 'EUR')}"
 
-    def add_inspiration(self, image: Path, notes: str = "") -> str:
-        style = self.agent.extract_style(
-            [image] if image else [], notes or "(re-extract from all images)"
-        )
+    def _apply_style_from(self, images: list[Path], notes: str) -> str:
+        style = self.agent.extract_style(images, notes)
         self.project.snapshot()
         self.project.meta["style_profile"] = style.model_dump()
         self._mutated()
         return f"style profile updated: {', '.join(style.style_tags) or '(no tags)'}"
+
+    def add_inspiration(self, image: Path, notes: str = "") -> str:
+        return self._apply_style_from([image] if image else [], notes or "(from images)")
+
+    @staticmethod
+    def _download_image(url: str) -> bytes:
+        import httpx
+
+        from furnisher.catalog.adapters.ikea import USER_AGENT
+
+        resp = httpx.get(url, timeout=20, follow_redirects=True, headers={"User-Agent": USER_AGENT})
+        resp.raise_for_status()
+        return resp.content
+
+    def inspire_from_ikea(self, query: str, notes: str = "") -> str:
+        """Pull styled IKEA lifestyle photos for a query into inspiration/ and re-extract style."""
+        provider = self.catalog.providers.get("ikea")
+        if provider is None or not hasattr(provider, "inspiration_images"):
+            return "the IKEA provider isn't available"
+        photos = provider.inspiration_images(query)
+        if not photos:
+            return f"no inspiration photos found for {query!r}"
+        dest = self.project.path / "inspiration"
+        dest.mkdir(exist_ok=True)
+        saved: list[Path] = []
+        slug = "".join(c if c.isalnum() else "-" for c in query.lower()).strip("-")
+        for n, photo in enumerate(photos):
+            try:
+                data = self._download_image(photo["url"])
+            except Exception:
+                continue
+            path = dest / f"ikea-{slug}-{n}.jpg"
+            path.write_bytes(data)
+            saved.append(path)
+        if not saved:
+            return "could not download any inspiration photos"
+        reply = self._apply_style_from(saved, notes or f"IKEA lifestyle photos for: {query}")
+        return f"pulled {len(saved)} IKEA photos into inspiration/ — {reply}"
 
     def clear_room(self, room_id: str) -> str:
         self.project.snapshot()

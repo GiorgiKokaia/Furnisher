@@ -239,6 +239,8 @@ def chat(project_dir: Path = typer.Argument(..., exists=True, file_okay=False)) 
                 elif cmd == "/inspire":
                     image_arg, _, notes = arg.partition(" ")
                     typer.echo("agent> " + orch.add_inspiration(Path(image_arg), notes))
+                elif cmd == "/inspire-ikea":
+                    typer.echo("agent> " + orch.inspire_from_ikea(arg.strip()))
                 elif cmd == "/room":
                     from furnisher.render3d import generate_room_image
 

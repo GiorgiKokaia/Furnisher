@@ -48,6 +48,15 @@ the catalog, (c) plain-language suggestions/rationale for the user.
   fit with ≥70cm walking clearance (05 re-validates; the agent just shouldn't waste proposals).
 - Track budget across rooms if the user set one.
 
+## IKEA inspiration photos
+
+IKEA's /rooms/ idea gallery is a JS app with no query API, but every product search hit
+carries `contextualImageUrl` — a professionally styled room photo. `IkeaProvider
+.inspiration_images(query)` collects those; `Orchestrator.inspire_from_ikea(query)` downloads
+them into the project's `inspiration/` dir and re-extracts the style profile. Exposed as
+`/inspire-ikea <query>` in chat and the ✨ button in the web app. (Verified live:
+"gemütliches schlafzimmer holz" → 4 photos → Scandinavian/Cozy profile.)
+
 ## Prompts as files
 
 Keep prompts in `src/furnisher/agent/prompts/*.md`, loaded at runtime — reviewable in git,

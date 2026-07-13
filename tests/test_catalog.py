@@ -116,3 +116,15 @@ def test_ikea_bed_length_used_as_depth():
         "depth_m": pytest.approx(2.09),
         "height_m": pytest.approx(1.0),
     }
+
+
+def test_ikea_inspiration_images_from_fixture():
+    from furnisher.catalog.adapters.ikea import IkeaProvider
+
+    payload = json.loads((FIXTURES / "search-sofa.json").read_text(encoding="utf-8"))
+    provider = IkeaProvider()
+    provider._search_raw = lambda query, size: parse_search_products(payload)
+    photos = provider.inspiration_images("sofa", limit=4)
+    assert photos
+    assert all(p["url"].startswith("https://") for p in photos)
+    assert len({p["url"] for p in photos}) == len(photos)  # deduped
