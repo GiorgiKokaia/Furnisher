@@ -90,7 +90,14 @@ def _dims_label(room) -> str:
     return f"{approx}{_fmt(w)} × {_fmt(h)} m · {area:.1f} m²"
 
 
-def render_plan(plan: FloorPlan, style: RenderStyle | None = None) -> str:
+def render_plan(
+    plan: FloorPlan,
+    style: RenderStyle | None = None,
+    *,
+    placements=None,
+    catalog=None,
+) -> str:
+    """Empty plan, or furnished when `placements` (+ a catalog for item lookup) is given."""
     style = style or RenderStyle()
     if not plan.rooms:
         return (
@@ -122,6 +129,13 @@ def render_plan(plan: FloorPlan, style: RenderStyle | None = None) -> str:
     for op in plan.openings:
         parts.extend(_render_opening(plan, op, t, style, wall_px))
 
+    # Furniture footprints (scale-correct: real catalog dims + pose).
+    if placements:
+        if catalog is None:
+            raise ValueError("rendering placements requires a catalog for item lookup")
+        for p in placements:
+            parts.extend(_render_placement(p, catalog, t, style))
+
     # Labels last, on top of everything.
     for room in plan.rooms:
         cx, cy = t(geometry.centroid(room.polygon))
@@ -137,6 +151,35 @@ def render_plan(plan: FloorPlan, style: RenderStyle | None = None) -> str:
 
     parts.append("</svg>")
     return "\n".join(parts)
+
+
+def _render_placement(placement, catalog, t: _Transform, style: RenderStyle) -> list[str]:
+    from furnisher.layout import placement_polygon  # shared pose math; no cycle (layout -> model)
+
+    item = catalog.get(placement.item_ref)
+    poly = placement_polygon(placement, item)
+    pts = list(poly.exterior.coords)[:4]
+    parts = [
+        f'<polygon points="{_points_attr(pts, t)}" fill="#fbf9f3" fill-opacity="0.9" '
+        'stroke="#7a6a55" stroke-width="1.5"/>'
+    ]
+    cx, cy = poly.centroid.x, poly.centroid.y
+    # front tick: shows orientation (front = local -y at rotation 0)
+    front = geometry.rotate((0, -1), placement.rotation)
+    d = item.depth_m / 2
+    tick_from = (cx + front[0] * d * 0.45, cy + front[1] * d * 0.45)
+    tick_to = (cx + front[0] * d * 0.95, cy + front[1] * d * 0.95)
+    parts.append(_polyline([tick_from, tick_to], t, "#b0a08a", 1.5))
+    sx, sy = t((cx, cy))
+    parts.append(
+        f'<text x="{_fmt(sx)}" y="{_fmt(sy)}" text-anchor="middle" fill="#5d5142" '
+        f'font-size="9">{html.escape(item.name)}</text>'
+    )
+    parts.append(
+        f'<text x="{_fmt(sx)}" y="{_fmt(sy + 10)}" text-anchor="middle" fill="#9a8d78" '
+        f'font-size="8">{item.width_m * 100:.0f}×{item.depth_m * 100:.0f}</text>'
+    )
+    return parts
 
 
 def _render_opening(

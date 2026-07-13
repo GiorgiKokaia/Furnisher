@@ -1,0 +1,19 @@
+{
+  "comment": "Hand-placed demo furnishing for my-apartment.yaml using the generic starter catalog. rotation: CCW degrees, 0 = item width along +x, front faces -y.",
+  "placements": [
+    {"id": "sofa", "item_ref": "generic:loft-sofa-3", "room": "Chill", "position": [6.7, 3.97], "rotation": 0, "note": "back against north wall, under the windows (sofa is lower than the sills)"},
+    {"id": "coffee-table", "item_ref": "generic:slab-coffee-table", "room": "Chill", "position": [6.7, 2.85], "rotation": 0},
+    {"id": "tv-bench", "item_ref": "generic:beam-tv-bench", "room": "Chill", "position": [6.7, 1.27], "rotation": 180, "note": "facing the sofa"},
+    {"id": "armchair", "item_ref": "generic:ridge-armchair", "room": "Chill", "position": [8.75, 3.55], "rotation": 300, "note": "reading corner by the east window"},
+    {"id": "bookshelf", "item_ref": "generic:stack-bookshelf", "room": "Chill", "position": [4.2, 3.5], "rotation": 90},
+    {"id": "floor-lamp", "item_ref": "generic:glow-floor-lamp", "room": "Chill", "position": [4.35, 2.3], "rotation": 0},
+    {"id": "bed", "item_ref": "generic:rest-double-bed-160", "room": "Sleep", "position": [5.1, -4.0], "rotation": 90, "note": "headboard against west wall, clear of the door approach"},
+    {"id": "nightstand", "item_ref": "generic:dot-nightstand", "room": "Sleep", "position": [6.45, -2.9], "rotation": 0},
+    {"id": "wardrobe", "item_ref": "generic:keep-wardrobe-3d", "room": "Sleep", "position": [8.2, -2.85], "rotation": 0, "note": "back against north wall"},
+    {"id": "shoe-cabinet", "item_ref": "generic:step-shoe-cabinet", "room": "Entry", "position": [4.18, 0.2], "rotation": 90},
+    {"id": "dining-table", "item_ref": "generic:gather-dining-table", "room": "Kitchen", "position": [7.8, 0.0], "rotation": 0},
+    {"id": "chair-1", "item_ref": "generic:gather-chair", "room": "Kitchen", "position": [7.4, -0.7], "rotation": 180},
+    {"id": "chair-2", "item_ref": "generic:gather-chair", "room": "Kitchen", "position": [8.2, 0.7], "rotation": 0},
+    {"id": "bath-cabinet", "item_ref": "generic:tall-bath-cabinet", "room": "Bathroom", "position": [9.28, -1.75], "rotation": 270}
+  ]
+}

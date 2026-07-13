@@ -1,6 +1,7 @@
 # 05 — Layout Engine
 
-**Status:** not started
+**Status:** validation v0 built (`src/furnisher/layout/`); auto-placement + connectivity check
+pending (M3)
 **Depends on:** 01 (geometry), 03 (item dimensions)
 **Code home:** `src/furnisher/layout/`
 
@@ -55,13 +56,14 @@ same scorer — *not* an ML model, not an ILP, until proven necessary.
 
 ## Tasks
 
-- [ ] Footprint/pose math (`Placement` → shapely polygon), door-swing arcs
-- [ ] `validate()` with the v0 rule set + `LayoutIssue`
-- [ ] Clearance data table
-- [ ] `auto_place()` greedy v0
-- [ ] Property-ish tests on fixture plans: solver output always passes `validate()`; overlapping /
-      out-of-room / door-blocking fixtures each produce their specific issue
-- [ ] Connectivity (erosion) check — trickiest bit, test it well
+- [x] Footprint/pose math (`Placement` → shapely polygon; front = local -y at rotation 0),
+      door-swing arcs, approach corridors (0.6 m both sides of doors/passages)
+- [x] `validate()` with the v0 rule set + `LayoutIssue` (fit, overlap, swing/approach blocked,
+      window obstruction, front clearances)
+- [x] Clearance data table (`layout/clearances.py`; chairs exempt — they tuck under tables)
+- [ ] `auto_place()` greedy v0 (M3)
+- [x] Tests: each rule produces its specific issue; clean layout produces none
+- [ ] Connectivity (erosion) check — trickiest bit, test it well (deferred; noted in validate.py)
 
 ## Open questions
 

@@ -15,6 +15,8 @@ plan_app = typer.Typer(help="Floor plan authoring.", no_args_is_help=True)
 app.add_typer(plan_app, name="plan")
 catalog_app = typer.Typer(help="Furniture catalog search.", no_args_is_help=True)
 app.add_typer(catalog_app, name="catalog")
+furnish_app = typer.Typer(help="Furnishing: validate and render placements.", no_args_is_help=True)
+app.add_typer(furnish_app, name="furnish")
 
 
 def _version_callback(value: bool) -> None:
@@ -142,6 +144,53 @@ def catalog_show(item_id: str = typer.Argument(..., help="e.g. generic:loft-sofa
 
     item = default_catalog().get(item_id)
     typer.echo(item.model_dump_json(indent=2, exclude={"raw"}))
+
+
+def _load_placements(path: Path):
+    import json
+
+    from furnisher.model import Placement
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return [Placement.model_validate(p) for p in data.get("placements", [])]
+
+
+@furnish_app.command("validate")
+def furnish_validate(
+    plan_file: Path = typer.Argument(..., exists=True),
+    placements_file: Path = typer.Argument(..., exists=True),
+) -> None:
+    """Check placements: fit, overlaps, door swings, clearances."""
+    from furnisher.catalog import default_catalog
+    from furnisher.layout import validate as layout_validate
+
+    plan = _load_or_exit(plan_file)
+    placements = _load_placements(placements_file)
+    issues = layout_validate(plan, placements, default_catalog())
+    for issue in issues:
+        typer.echo(str(issue), err=issue.severity == "error")
+    errors = [i for i in issues if i.severity == "error"]
+    if errors:
+        raise typer.Exit(code=1)
+    typer.echo(f"OK — {len(placements)} placements, {len(issues)} warnings")
+
+
+@furnish_app.command("render")
+def furnish_render(
+    plan_file: Path = typer.Argument(..., exists=True),
+    placements_file: Path = typer.Argument(..., exists=True),
+    out: Path | None = typer.Option(None, "--out", "-o"),
+) -> None:
+    """Render the furnished floor plan to SVG."""
+    from furnisher.catalog import default_catalog
+
+    plan = _load_or_exit(plan_file)
+    placements = _load_placements(placements_file)
+    out_path = out or plan_file.with_suffix(".furnished.svg")
+    out_path.write_text(
+        render_plan(plan, placements=placements, catalog=default_catalog()), encoding="utf-8"
+    )
+    typer.echo(f"wrote {out_path}")
 
 
 if __name__ == "__main__":

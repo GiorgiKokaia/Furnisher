@@ -42,7 +42,8 @@ def render_room(plan, room_id, placements, catalog, style) -> str
 - [x] Empty-plan SVG: polygons, wall stroke, labels, area computation (`render2d/svg.py`;
       hand-rolled SVG strings, no `svgwrite` needed)
 - [x] Doors (swing arcs as sampled polylines — avoids SVG arc sweep-flag pitfalls) and windows
-- [ ] Furnished mode: footprint rects with rotation + labels
+- [x] Furnished mode: footprint rects with rotation, front-direction tick, name + cm dims labels
+      (`render_plan(plan, placements=..., catalog=...)`)
 - [ ] Room-crop mode with numbered legend (coordinate with 07 on exactly what the vision model
       needs — iterate together)
 - [ ] PNG export
