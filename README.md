@@ -38,7 +38,8 @@ preview, empty-plan renderer, CLI, tests. Try it:
 
 ```
 uv sync
-uv run furnisher plan preview tests/fixtures/two-bedroom.yaml --watch
+uv run furnisher plan edit my-apartment.yaml        # browser GUI editor (creates the file on save)
+uv run furnisher plan preview my-apartment.yaml --watch   # or hand-edit YAML with live SVG
 ```
 
 Next: author the real apartment as a plan file, then Milestone M1 (catalog: provider protocol,

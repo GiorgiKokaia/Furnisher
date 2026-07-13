@@ -1,6 +1,7 @@
 # 02 — Floor Plan Authoring
 
-**Status:** phase 1 built (YAML + sugar + `plan validate` / `plan preview --watch`)
+**Status:** phase 1 built (YAML + sugar + `plan validate` / `plan preview --watch`);
+phase 2 built (`furnisher plan edit` browser editor)
 **Depends on:** 01 (schema), 06 (renderer, for preview)
 **Code home:** `src/furnisher/authoring/`
 
@@ -28,12 +29,28 @@ YAML sugar worth adding (desugars to schema polygons — keep it minimal):
 Why text-first: fastest path to a real plan of the user's own apartment; diffs nicely in git; the
 design agent can read and even propose plan edits with zero extra tooling.
 
-## Phase 2 — browser editor (M5)
+## Phase 2 — browser editor (built early, was planned for M5)
 
-Small FastAPI app serving a canvas editor: drag vertices, drag openings along edges, edit
-properties in a sidebar. Reads/writes the same YAML/JSON file — the editor is a *view*, the file
-stays the source of truth. Keep the JS dependency-light (vanilla or a single small lib); all
-validation stays in Python via a `/validate` endpoint.
+`furnisher plan edit my-apartment.yaml [--port 8377]` — FastAPI app (`authoring/editor.py`)
+serving a single-file vanilla-JS canvas editor (`authoring/editor.html`, no build step). The YAML
+file stays the source of truth; the editor is a view. All validation/serialization stays in
+Python.
+
+What it does:
+- Draw rooms by dragging (5 cm grid snap); move rooms; reshape via corner handles.
+- Place doors/windows/passages by clicking a wall (tools D/W/P); drag them along their wall;
+  edit width/offset/swing/sill/connects in the sidebar.
+- Door/passage `connects` is auto-inferred from adjacency on save (`authoring/infer.py`) —
+  leave it "(auto)".
+- Validate button surfaces `validate_plan()` issues; Save writes canonical YAML via
+  `authoring/serializer.py` (geometric warnings don't block saving — you're iterating).
+- Preview button shows the server-rendered SVG (with door arcs; the canvas draws openings as
+  simple colored bars).
+- Zoom (wheel), pan (drag empty space / space+drag), fit (F), delete (Del), Ctrl+S to save.
+
+Serializer detail worth knowing: `rect` sugar is only re-emitted when a polygon is exactly the
+canonical loader-produced rectangle — anything else stays a `polygon`, because rect desugaring
+renumbers edges and would silently break the openings referencing them.
 
 ## Phase 3 — import (future, don't build)
 
@@ -53,7 +70,9 @@ plan → rooms, via an ML model or the design agent itself with vision. Park it.
 - [x] `furnisher plan validate` CLI (typer)
 - [x] `furnisher plan preview` with `watchfiles` live re-render (`--watch`)
 - [ ] Author one *real* apartment (the user's) as the canonical test plan
-- [ ] (M5) FastAPI editor skeleton
+- [x] FastAPI editor (`plan edit`): canvas drawing, opening placement, sidebar props,
+      auto-`connects`, save/validate/preview — verified end-to-end with Playwright
+- [ ] Editor niceties when needed: vertex add/remove for non-rect rooms, undo, overlap warnings
 
 ## Open questions
 

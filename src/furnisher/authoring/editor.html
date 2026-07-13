@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Furnisher — plan editor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: #333;
+    display: flex; flex-direction: column; background: #fafafa;
+  }
+  header {
+    display: flex; align-items: center; gap: 6px; padding: 8px 12px;
+    background: #2f2a26; color: #eee;
+  }
+  header .brand { font-weight: 700; margin-right: 12px; letter-spacing: 0.5px; }
+  header .spacer { flex: 1; }
+  button {
+    font: inherit; padding: 5px 12px; border: 1px solid #555; border-radius: 4px;
+    background: #3d3733; color: #eee; cursor: pointer;
+  }
+  button:hover { background: #4a433e; }
+  button.tool.active { background: #b98a3d; border-color: #b98a3d; color: #fff; }
+  button.primary { background: #4a7fa5; border-color: #4a7fa5; }
+  button.primary:hover { background: #598fb5; }
+  main { flex: 1; display: flex; min-height: 0; }
+  #canvas { flex: 1; display: block; cursor: crosshair; background: #fdfdfb; }
+  aside {
+    width: 280px; border-left: 1px solid #ddd; background: #fff; overflow-y: auto;
+    padding: 12px; display: flex; flex-direction: column; gap: 10px;
+  }
+  aside h3 { font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+  .field { display: flex; align-items: center; gap: 8px; }
+  .field label { width: 90px; color: #666; flex-shrink: 0; }
+  .field input, .field select {
+    flex: 1; min-width: 0; font: inherit; padding: 4px 6px;
+    border: 1px solid #ccc; border-radius: 3px;
+  }
+  .danger { background: #a54a4a; border-color: #a54a4a; align-self: flex-start; }
+  .danger:hover { background: #b55a5a; }
+  #issues { display: flex; flex-direction: column; gap: 4px; }
+  #issues .issue {
+    background: #fdf0ef; border: 1px solid #e8c5c2; border-radius: 4px;
+    padding: 6px 8px; color: #8a3b34;
+  }
+  #issues .ok { background: #eff7ee; border-color: #c5e0c2; color: #3b6e34; }
+  .hint { color: #999; line-height: 1.5; }
+  footer {
+    display: flex; gap: 16px; padding: 5px 12px; background: #eee;
+    border-top: 1px solid #ddd; color: #666; font-size: 12px;
+  }
+  footer .spacer { flex: 1; }
+  #overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: flex;
+    align-items: center; justify-content: center; z-index: 10;
+  }
+  #overlay .panel {
+    background: #fff; border-radius: 8px; padding: 16px; max-width: 92vw; max-height: 92vh;
+    overflow: auto; box-shadow: 0 8px 40px rgba(0,0,0,0.35);
+  }
+  #overlay .panel svg { display: block; max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">Furnisher</span>
+  <button class="tool active" data-tool="select" title="Select / move / drag (S)">Select</button>
+  <button class="tool" data-tool="room" title="Drag to draw a room (R)">+ Room</button>
+  <button class="tool" data-tool="door" title="Click a wall to place a door (D)">+ Door</button>
+  <button class="tool" data-tool="window" title="Click a wall to place a window (W)">+ Window</button>
+  <button class="tool" data-tool="opening" title="Click a wall to place a doorless passage (P)">+ Passage</button>
+  <span class="spacer"></span>
+  <button id="fitBtn" title="Fit plan to screen (F)">Fit</button>
+  <button id="previewBtn" title="Server-rendered SVG with door arcs">Preview</button>
+  <button id="validateBtn">Validate</button>
+  <button id="saveBtn" class="primary" title="Ctrl+S">Save</button>
+</header>
+<main>
+  <canvas id="canvas"></canvas>
+  <aside id="sidebar"></aside>
+</main>
+<footer>
+  <span id="fileLabel"></span>
+  <span class="spacer"></span>
+  <span id="coords"></span>
+  <span id="hint"></span>
+</footer>
+
+<script>
+"use strict";
+
+const ROOM_TYPES = ["living_room","bedroom","kitchen","bathroom","wc","hallway","dining_room",
+                    "office","balcony","storage","other"];
+const SWINGS = ["inward_left","inward_right","outward_left","outward_right","sliding","none"];
+const FILLS = {living_room:"#f3ecdd", bedroom:"#e7ecf5", kitchen:"#f0e4d7", bathroom:"#ddeef0",
+               wc:"#ddeef0", hallway:"#eeeae4", dining_room:"#f3ecdd", office:"#e9efe6",
+               balcony:"#e4efe0", storage:"#e8e5e0", other:"#ececec"};
+const OPEN_COLORS = {door:"#8a6d3b", window:"#5b87a8", opening:"#9a9a9a"};
+const DEFAULT_WIDTHS = {door:0.9, window:1.2, opening:1.0};
+const SNAP = 0.05;
+const HIT_PX = 10;
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const sidebar = document.getElementById("sidebar");
+
+let plan = null;                 // schema JSON: {name, ceiling_height, rooms, openings}
+let planPath = "";
+let view = {scale: 80, ox: 60, oy: 500};
+let tool = "select";
+let sel = null;                  // {kind:"room"|"opening", i}
+let drag = null;                 // active drag descriptor
+let hoverEdge = null;            // {ri, edge, t} while a placement tool is active
+let mouseWorld = [0, 0];
+let dirty = false;
+
+// ---------- geometry ----------
+const snap = v => Math.round(Math.round(v / SNAP) * SNAP * 10000) / 10000;
+const w2s = p => [p[0] * view.scale + view.ox, view.oy - p[1] * view.scale];
+const s2w = (x, y) => [(x - view.ox) / view.scale, (view.oy - y) / view.scale];
+
+function distToSeg(p, a, b) {
+  const dx = b[0]-a[0], dy = b[1]-a[1], l2 = dx*dx + dy*dy;
+  let t = l2 ? ((p[0]-a[0])*dx + (p[1]-a[1])*dy) / l2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return {d: Math.hypot(p[0]-a[0]-t*dx, p[1]-a[1]-t*dy), t};
+}
+
+function pointInPoly(p, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > p[1]) !== (yj > p[1]) &&
+        p[0] < (xj - xi) * (p[1] - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function polyArea(poly) {
+  let s = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const [x1, y1] = poly[i], [x2, y2] = poly[(i+1) % poly.length];
+    s += x1*y2 - x2*y1;
+  }
+  return Math.abs(s) / 2;
+}
+
+function polyCentroid(poly) {
+  let cx = 0, cy = 0;
+  poly.forEach(p => { cx += p[0]; cy += p[1]; });
+  return [cx / poly.length, cy / poly.length];
+}
+
+function edgePoints(room, edge) {
+  const poly = room.polygon;
+  return [poly[edge], poly[(edge + 1) % poly.length]];
+}
+
+function edgeLen(room, edge) {
+  const [a, b] = edgePoints(room, edge);
+  return Math.hypot(b[0]-a[0], b[1]-a[1]);
+}
+
+function openingSegment(op) {
+  const room = roomById(op.room);
+  if (!room || op.edge >= room.polygon.length) return null;
+  const [a, b] = edgePoints(room, op.edge);
+  const L = Math.hypot(b[0]-a[0], b[1]-a[1]);
+  if (!L) return null;
+  const u = [(b[0]-a[0])/L, (b[1]-a[1])/L];
+  return [[a[0]+u[0]*op.offset, a[1]+u[1]*op.offset],
+          [a[0]+u[0]*(op.offset+op.width), a[1]+u[1]*(op.offset+op.width)]];
+}
+
+const roomById = id => plan.rooms.find(r => r.id === id);
+
+// ---------- drawing ----------
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.clientWidth * dpr;
+  canvas.height = canvas.clientHeight * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+
+function draw() {
+  if (!plan) return;
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  ctx.clearRect(0, 0, W, H);
+
+  // 1 m grid
+  const [wx0, wy1] = s2w(0, 0), [wx1, wy0] = s2w(W, H);
+  ctx.strokeStyle = "#eee"; ctx.lineWidth = 1;
+  for (let x = Math.floor(wx0); x <= Math.ceil(wx1); x++) {
+    const [sx] = w2s([x, 0]);
+    ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke();
+  }
+  for (let y = Math.floor(wy0); y <= Math.ceil(wy1); y++) {
+    const sy = w2s([0, y])[1];
+    ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(W, sy); ctx.stroke();
+  }
+  // origin marker
+  const [ox0, oy0] = w2s([0, 0]);
+  ctx.strokeStyle = "#ccc";
+  ctx.beginPath(); ctx.moveTo(ox0-8, oy0); ctx.lineTo(ox0+8, oy0);
+  ctx.moveTo(ox0, oy0-8); ctx.lineTo(ox0, oy0+8); ctx.stroke();
+
+  // rooms
+  plan.rooms.forEach((room, i) => {
+    const pts = room.polygon.map(w2s);
+    ctx.beginPath();
+    pts.forEach((p, k) => k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+    ctx.closePath();
+    ctx.fillStyle = FILLS[room.type] || FILLS.other;
+    ctx.fill();
+    const selected = sel && sel.kind === "room" && sel.i === i;
+    ctx.strokeStyle = selected ? "#d97706" : "#2f2a26";
+    ctx.lineWidth = selected ? 4 : 3;
+    ctx.lineJoin = "miter";
+    ctx.stroke();
+  });
+
+  // openings
+  (plan.openings || []).forEach((op, i) => {
+    const seg = openingSegment(op);
+    if (!seg) return;
+    const [a, b] = seg.map(w2s);
+    if (sel && sel.kind === "opening" && sel.i === i) {
+      ctx.strokeStyle = "#d97706"; ctx.lineWidth = 12; ctx.lineCap = "butt";
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    }
+    ctx.strokeStyle = OPEN_COLORS[op.kind]; ctx.lineWidth = 7; ctx.lineCap = "butt";
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+  });
+
+  // labels
+  ctx.textAlign = "center";
+  plan.rooms.forEach(room => {
+    const [cx, cy] = w2s(polyCentroid(room.polygon));
+    ctx.fillStyle = "#3a3a3a"; ctx.font = "600 13px 'Segoe UI', sans-serif";
+    ctx.fillText(room.id, cx, cy);
+    ctx.fillStyle = "#8a8a8a"; ctx.font = "11px 'Segoe UI', sans-serif";
+    ctx.fillText(polyArea(room.polygon).toFixed(1) + " m²", cx, cy + 14);
+  });
+
+  // vertex handles for selected room
+  if (sel && sel.kind === "room") {
+    const room = plan.rooms[sel.i];
+    room.polygon.forEach(p => {
+      const [x, y] = w2s(p);
+      ctx.fillStyle = "#fff"; ctx.strokeStyle = "#d97706"; ctx.lineWidth = 2;
+      ctx.fillRect(x-4, y-4, 8, 8); ctx.strokeRect(x-4, y-4, 8, 8);
+    });
+  }
+
+  // edge highlight + ghost while placing an opening
+  if (hoverEdge && ["door", "window", "opening"].includes(tool)) {
+    const room = plan.rooms[hoverEdge.ri];
+    const [a, b] = edgePoints(room, hoverEdge.edge).map(w2s);
+    ctx.strokeStyle = "#3b9e4f"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    const ghost = ghostOpening();
+    if (ghost) {
+      const [ga, gb] = ghost.map(w2s);
+      ctx.strokeStyle = OPEN_COLORS[tool]; ctx.lineWidth = 9; ctx.globalAlpha = 0.6;
+      ctx.beginPath(); ctx.moveTo(ga[0], ga[1]); ctx.lineTo(gb[0], gb[1]); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ghost rect while drawing a room
+  if (drag && drag.mode === "draw-room") {
+    const r = dragRect();
+    const [a, b] = [w2s([r.x, r.y]), w2s([r.x + r.w, r.y + r.h])];
+    ctx.fillStyle = "rgba(185,138,61,0.15)"; ctx.strokeStyle = "#b98a3d"; ctx.lineWidth = 2;
+    ctx.fillRect(a[0], b[1], b[0]-a[0], a[1]-b[1]);
+    ctx.strokeRect(a[0], b[1], b[0]-a[0], a[1]-b[1]);
+    ctx.fillStyle = "#7a5d2b"; ctx.font = "12px 'Segoe UI', sans-serif";
+    ctx.fillText(r.w.toFixed(2) + " × " + r.h.toFixed(2) + " m", (a[0]+b[0])/2, b[1]-6);
+  }
+}
+
+function ghostOpening() {
+  if (!hoverEdge) return null;
+  const room = plan.rooms[hoverEdge.ri];
+  const width = DEFAULT_WIDTHS[tool];
+  const L = edgeLen(room, hoverEdge.edge);
+  if (L < width) return null;
+  const offset = Math.max(0, Math.min(L - width, hoverEdge.t * L - width / 2));
+  return openingSegment({room: room.id, edge: hoverEdge.edge, offset, width});
+}
+
+function dragRect() {
+  const [x0, y0] = drag.start, [x1, y1] = mouseWorld.map(snap);
+  return {x: Math.min(x0, x1), y: Math.min(y0, y1),
+          w: Math.abs(x1 - x0), h: Math.abs(y1 - y0)};
+}
+
+// ---------- hit testing ----------
+function findEdge(sp) {
+  let best = null;
+  plan.rooms.forEach((room, ri) => {
+    const n = room.polygon.length;
+    for (let i = 0; i < n; i++) {
+      const [a, b] = edgePoints(room, i).map(w2s);
+      const {d, t} = distToSeg(sp, a, b);
+      if (d < HIT_PX && (!best || d < best.d)) best = {ri, edge: i, t, d};
+    }
+  });
+  return best;
+}
+
+function hitVertex(sp) {
+  if (!sel || sel.kind !== "room") return null;
+  const room = plan.rooms[sel.i];
+  for (let vi = 0; vi < room.polygon.length; vi++) {
+    const [x, y] = w2s(room.polygon[vi]);
+    if (Math.abs(sp[0]-x) < 7 && Math.abs(sp[1]-y) < 7) return vi;
+  }
+  return null;
+}
+
+function hitOpening(sp) {
+  const ops = plan.openings || [];
+  for (let i = ops.length - 1; i >= 0; i--) {
+    const seg = openingSegment(ops[i]);
+    if (!seg) continue;
+    const [a, b] = seg.map(w2s);
+    if (distToSeg(sp, a, b).d < HIT_PX) return i;
+  }
+  return null;
+}
+
+function hitRoom(wp) {
+  for (let i = plan.rooms.length - 1; i >= 0; i--) {
+    if (pointInPoly(wp, plan.rooms[i].polygon)) return i;
+  }
+  return null;
+}
+
+// ---------- ids ----------
+function freshId(prefix) {
+  const taken = new Set([...plan.rooms.map(r => r.id),
+                         ...(plan.openings || []).map(o => o.id)]);
+  for (let n = 1; ; n++) if (!taken.has(prefix + "-" + n)) return prefix + "-" + n;
+}
+
+// ---------- mutations ----------
+function markDirty() { dirty = true; updateFooter(); }
+
+function addRoomFromRect(r) {
+  if (r.w < 0.2 || r.h < 0.2) return;
+  const room = {id: freshId("room"), type: "other", ceiling_height: null,
+    polygon: [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]]};
+  plan.rooms.push(room);
+  sel = {kind: "room", i: plan.rooms.length - 1};
+  markDirty(); setTool("select"); renderSidebar();
+}
+
+function addOpeningAt(edgeHit, kind) {
+  const room = plan.rooms[edgeHit.ri];
+  const width = DEFAULT_WIDTHS[kind];
+  const L = edgeLen(room, edgeHit.edge);
+  if (L < width) { flash("wall too short for a " + kind); return; }
+  const op = {
+    id: freshId(kind), kind, room: room.id, edge: edgeHit.edge,
+    offset: snap(Math.max(0, Math.min(L - width, edgeHit.t * L - width / 2))),
+    width, height: kind === "window" ? 1.4 : 2.0,
+    swing: kind === "door" ? "inward_left" : null,
+    connects: null,
+    sill_height: kind === "window" ? 0.85 : null,
+  };
+  plan.openings = plan.openings || [];
+  plan.openings.push(op);
+  sel = {kind: "opening", i: plan.openings.length - 1};
+  markDirty(); renderSidebar();
+}
+
+function deleteSelection() {
+  if (!sel) return;
+  if (sel.kind === "room") {
+    const id = plan.rooms[sel.i].id;
+    plan.openings = (plan.openings || []).filter(o => o.room !== id);
+    plan.openings.forEach(o => { if (o.connects === id) o.connects = null; });
+    plan.rooms.splice(sel.i, 1);
+  } else {
+    plan.openings.splice(sel.i, 1);
+  }
+  sel = null; markDirty(); renderSidebar(); draw();
+}
+
+function renameRoom(room, newId) {
+  if (!newId || newId === room.id) return false;
+  if (plan.rooms.some(r => r.id === newId)) { flash("id already taken"); return false; }
+  const old = room.id;
+  room.id = newId;
+  (plan.openings || []).forEach(o => {
+    if (o.room === old) o.room = newId;
+    if (o.connects === old) o.connects = newId;
+  });
+  markDirty(); return true;
+}
+
+// ---------- sidebar ----------
+function field(label, input) {
+  const div = document.createElement("div");
+  div.className = "field";
+  const lab = document.createElement("label");
+  lab.textContent = label;
+  div.append(lab, input);
+  return div;
+}
+
+function textInput(value, onchange) {
+  const el = document.createElement("input");
+  el.value = value ?? "";
+  el.addEventListener("change", () => onchange(el.value.trim()));
+  return el;
+}
+
+function numInput(value, onchange, step = 0.05) {
+  const el = document.createElement("input");
+  el.type = "number"; el.step = step;
+  el.value = value ?? "";
+  el.addEventListener("change", () => {
+    const v = el.value === "" ? null : parseFloat(el.value);
+    if (v === null || !isNaN(v)) onchange(v);
+  });
+  return el;
+}
+
+function selectInput(options, value, onchange, allowEmpty = false) {
+  const el = document.createElement("select");
+  if (allowEmpty) el.append(new Option("(auto)", ""));
+  options.forEach(o => el.append(new Option(o, o)));
+  el.value = value ?? "";
+  el.addEventListener("change", () => onchange(el.value || null));
+  return el;
+}
+
+function renderSidebar() {
+  sidebar.innerHTML = "";
+  const h = txt => { const el = document.createElement("h3"); el.textContent = txt; sidebar.append(el); };
+
+  if (sel && sel.kind === "room") {
+    const room = plan.rooms[sel.i];
+    h("Room");
+    sidebar.append(field("id", textInput(room.id, v => { renameRoom(room, v); renderSidebar(); draw(); })));
+    sidebar.append(field("type", selectInput(ROOM_TYPES, room.type, v => { room.type = v; markDirty(); draw(); })));
+    sidebar.append(field("ceiling (m)", numInput(room.ceiling_height, v => { room.ceiling_height = v; markDirty(); }, 0.05)));
+    const del = document.createElement("button");
+    del.textContent = "Delete room"; del.className = "danger";
+    del.addEventListener("click", deleteSelection);
+    sidebar.append(del);
+    const hint = document.createElement("div");
+    hint.className = "hint";
+    hint.textContent = "Drag the room to move it; drag corner handles to reshape. Openings follow their wall.";
+    sidebar.append(hint);
+  } else if (sel && sel.kind === "opening") {
+    const op = plan.openings[sel.i];
+    h(op.kind.charAt(0).toUpperCase() + op.kind.slice(1));
+    sidebar.append(field("id", textInput(op.id, v => { if (v) { op.id = v; markDirty(); } renderSidebar(); })));
+    sidebar.append(field("width (m)", numInput(op.width, v => { if (v > 0) { op.width = v; markDirty(); draw(); } })));
+    sidebar.append(field("offset (m)", numInput(op.offset, v => { if (v >= 0) { op.offset = v; markDirty(); draw(); } })));
+    sidebar.append(field("height (m)", numInput(op.height, v => { if (v > 0) { op.height = v; markDirty(); } })));
+    if (op.kind === "door") {
+      sidebar.append(field("swing", selectInput(SWINGS, op.swing, v => { op.swing = v; markDirty(); })));
+    }
+    if (op.kind === "window") {
+      sidebar.append(field("sill (m)", numInput(op.sill_height, v => { op.sill_height = v; markDirty(); })));
+    }
+    if (op.kind !== "window") {
+      sidebar.append(field("connects", selectInput(
+        ["exterior", ...plan.rooms.map(r => r.id).filter(id => id !== op.room)],
+        op.connects, v => { op.connects = v; markDirty(); }, true)));
+      const hint = document.createElement("div");
+      hint.className = "hint";
+      hint.textContent = "(auto) fills in the adjacent room — or exterior — when you save or validate.";
+      sidebar.append(hint);
+    }
+    const del = document.createElement("button");
+    del.textContent = "Delete " + op.kind; del.className = "danger";
+    del.addEventListener("click", deleteSelection);
+    sidebar.append(del);
+  } else {
+    h("Plan");
+    sidebar.append(field("name", textInput(plan.name, v => { plan.name = v; markDirty(); })));
+    sidebar.append(field("ceiling (m)", numInput(plan.ceiling_height, v => { if (v) { plan.ceiling_height = v; markDirty(); } })));
+    const hint = document.createElement("div");
+    hint.className = "hint";
+    hint.innerHTML = "<b>Room</b>: drag on the canvas.<br><b>Door / Window / Passage</b>: pick the tool, click a wall.<br>" +
+      "Click to select, drag to move, <b>Del</b> to delete.<br>Scroll to zoom, drag empty space to pan.<br>" +
+      "Grid snap: 5 cm. Units: meters.";
+    sidebar.append(hint);
+  }
+
+  const h2 = document.createElement("h3");
+  h2.textContent = "Issues";
+  const issues = document.createElement("div");
+  issues.id = "issues";
+  sidebar.append(h2, issues);
+}
+
+function showIssues(list, savedNote) {
+  const box = document.getElementById("issues");
+  if (!box) return;
+  box.innerHTML = "";
+  if (savedNote) {
+    const el = document.createElement("div");
+    el.className = "issue ok"; el.textContent = savedNote;
+    box.append(el);
+  }
+  if (!list.length && !savedNote) {
+    const el = document.createElement("div");
+    el.className = "issue ok"; el.textContent = "no issues";
+    box.append(el);
+  }
+  list.forEach(msg => {
+    const el = document.createElement("div");
+    el.className = "issue"; el.textContent = msg;
+    box.append(el);
+  });
+}
+
+// ---------- tools & events ----------
+function setTool(t) {
+  tool = t; hoverEdge = null;
+  document.querySelectorAll("button.tool").forEach(b =>
+    b.classList.toggle("active", b.dataset.tool === t));
+  canvas.style.cursor = t === "select" ? "default" : "crosshair";
+  updateFooter(); draw();
+}
+
+document.querySelectorAll("button.tool").forEach(b =>
+  b.addEventListener("click", () => setTool(b.dataset.tool)));
+
+canvas.addEventListener("mousedown", e => {
+  const sp = [e.offsetX, e.offsetY];
+  const wp = s2w(sp[0], sp[1]);
+  if (e.button === 1 || spaceHeld) { drag = {mode: "pan", sx: e.offsetX, sy: e.offsetY, ox: view.ox, oy: view.oy}; return; }
+  if (e.button !== 0) return;
+
+  if (tool === "room") {
+    drag = {mode: "draw-room", start: wp.map(snap)};
+    return;
+  }
+  if (["door", "window", "opening"].includes(tool)) {
+    const edgeHit = findEdge(sp);
+    if (edgeHit) addOpeningAt(edgeHit, tool);
+    draw();
+    return;
+  }
+
+  // select tool
+  const vi = hitVertex(sp);
+  if (vi !== null) {
+    drag = {mode: "vertex", vi};
+    return;
+  }
+  const oi = hitOpening(sp);
+  if (oi !== null) {
+    sel = {kind: "opening", i: oi};
+    drag = {mode: "opening"};
+    renderSidebar(); draw();
+    return;
+  }
+  const ri = hitRoom(wp);
+  if (ri !== null) {
+    sel = {kind: "room", i: ri};
+    const room = plan.rooms[ri];
+    drag = {mode: "room", start: wp, orig: room.polygon.map(p => [...p])};
+    renderSidebar(); draw();
+    return;
+  }
+  sel = null;
+  drag = {mode: "pan", sx: e.offsetX, sy: e.offsetY, ox: view.ox, oy: view.oy};
+  renderSidebar(); draw();
+});
+
+canvas.addEventListener("mousemove", e => {
+  const sp = [e.offsetX, e.offsetY];
+  mouseWorld = s2w(sp[0], sp[1]);
+  document.getElementById("coords").textContent =
+    mouseWorld[0].toFixed(2) + ", " + mouseWorld[1].toFixed(2) + " m";
+
+  if (drag) {
+    if (drag.mode === "pan") {
+      view.ox = drag.ox + e.offsetX - drag.sx;
+      view.oy = drag.oy + e.offsetY - drag.sy;
+    } else if (drag.mode === "room") {
+      const dx = snap(mouseWorld[0] - drag.start[0]);
+      const dy = snap(mouseWorld[1] - drag.start[1]);
+      const room = plan.rooms[sel.i];
+      room.polygon = drag.orig.map(p => [snap(p[0] + dx), snap(p[1] + dy)]);
+      markDirty();
+    } else if (drag.mode === "vertex") {
+      const room = plan.rooms[sel.i];
+      room.polygon[drag.vi] = mouseWorld.map(snap);
+      markDirty();
+    } else if (drag.mode === "opening") {
+      const op = plan.openings[sel.i];
+      const room = roomById(op.room);
+      const [a, b] = edgePoints(room, op.edge).map(w2s);
+      const {t} = distToSeg(sp, a, b);
+      const L = edgeLen(room, op.edge);
+      op.offset = snap(Math.max(0, Math.min(L - op.width, t * L - op.width / 2)));
+      markDirty();
+    }
+    draw();
+    return;
+  }
+
+  if (["door", "window", "opening"].includes(tool)) {
+    hoverEdge = findEdge(sp);
+    draw();
+  }
+});
+
+window.addEventListener("mouseup", () => {
+  if (drag && drag.mode === "draw-room") addRoomFromRect(dragRect());
+  drag = null;
+  draw();
+});
+
+canvas.addEventListener("wheel", e => {
+  e.preventDefault();
+  const f = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+  view.ox = e.offsetX - (e.offsetX - view.ox) * f;
+  view.oy = e.offsetY - (e.offsetY - view.oy) * f;
+  view.scale *= f;
+  draw();
+}, {passive: false});
+
+let spaceHeld = false;
+window.addEventListener("keydown", e => {
+  if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) return;
+  if (e.code === "Space") { spaceHeld = true; e.preventDefault(); return; }
+  if (e.ctrlKey && e.key.toLowerCase() === "s") { e.preventDefault(); save(); return; }
+  switch (e.key.toLowerCase()) {
+    case "delete": case "backspace": deleteSelection(); break;
+    case "escape": sel = null; setTool("select"); renderSidebar(); draw(); break;
+    case "s": setTool("select"); break;
+    case "r": setTool("room"); break;
+    case "d": setTool("door"); break;
+    case "w": setTool("window"); break;
+    case "p": setTool("opening"); break;
+    case "f": fitView(); break;
+  }
+});
+window.addEventListener("keyup", e => { if (e.code === "Space") spaceHeld = false; });
+
+function fitView() {
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  let minx = 0, miny = 0, maxx = 8, maxy = 6;
+  if (plan.rooms.length) {
+    const pts = plan.rooms.flatMap(r => r.polygon);
+    minx = Math.min(...pts.map(p => p[0])); maxx = Math.max(...pts.map(p => p[0]));
+    miny = Math.min(...pts.map(p => p[1])); maxy = Math.max(...pts.map(p => p[1]));
+  }
+  const w = Math.max(maxx - minx, 1), hgt = Math.max(maxy - miny, 1);
+  view.scale = Math.min((W - 100) / w, (H - 100) / hgt);
+  view.ox = (W - w * view.scale) / 2 - minx * view.scale;
+  view.oy = (H - hgt * view.scale) / 2 + maxy * view.scale;
+  draw();
+}
+
+// ---------- server calls ----------
+function flash(msg) {
+  document.getElementById("hint").textContent = msg;
+  setTimeout(() => updateFooter(), 2500);
+}
+
+function updateFooter() {
+  document.getElementById("fileLabel").textContent = planPath + (dirty ? "  •  unsaved changes" : "");
+  document.getElementById("hint").textContent =
+    tool === "select" ? "" : {room: "drag to draw a room", door: "click a wall",
+                              window: "click a wall", opening: "click a wall"}[tool];
+}
+
+async function save() {
+  const resp = await fetch("/api/plan", {method: "POST",
+    headers: {"Content-Type": "application/json"}, body: JSON.stringify(plan)});
+  const body = await resp.json();
+  if (body.saved) {
+    plan = body.plan;           // pick up inferred `connects`
+    if (sel && sel.kind === "room" && sel.i >= plan.rooms.length) sel = null;
+    if (sel && sel.kind === "opening" && sel.i >= (plan.openings || []).length) sel = null;
+    dirty = false;
+    renderSidebar();
+    showIssues(body.issues, "saved " + new Date().toLocaleTimeString());
+    updateFooter(); draw();
+  } else {
+    showIssues(body.issues);
+    flash("not saved — fix schema errors");
+  }
+}
+
+async function validate() {
+  const resp = await fetch("/api/validate", {method: "POST",
+    headers: {"Content-Type": "application/json"}, body: JSON.stringify(plan)});
+  const body = await resp.json();
+  showIssues(body.issues);
+}
+
+async function preview() {
+  const resp = await fetch("/api/render", {method: "POST",
+    headers: {"Content-Type": "application/json"}, body: JSON.stringify(plan)});
+  const text = await resp.text();
+  const overlay = document.createElement("div");
+  overlay.id = "overlay";
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  if (resp.ok) panel.innerHTML = text;
+  else panel.textContent = text;
+  overlay.append(panel);
+  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
+  document.body.append(overlay);
+}
+
+document.getElementById("saveBtn").addEventListener("click", save);
+document.getElementById("validateBtn").addEventListener("click", validate);
+document.getElementById("previewBtn").addEventListener("click", preview);
+document.getElementById("fitBtn").addEventListener("click", fitView);
+window.addEventListener("resize", resize);
+window.addEventListener("beforeunload", e => { if (dirty) e.preventDefault(); });
+
+(async function init() {
+  const resp = await fetch("/api/plan");
+  const body = await resp.json();
+  if (body.error) { alert(body.error); return; }
+  plan = body.plan;
+  plan.openings = plan.openings || [];
+  planPath = body.path;
+  document.title = "Furnisher — " + planPath;
+  renderSidebar();
+  resize();
+  fitView();
+  updateFooter();
+})();
+</script>
+</body>
+</html>

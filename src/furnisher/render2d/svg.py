@@ -82,6 +82,14 @@ def _polyline(
 
 def render_plan(plan: FloorPlan, style: RenderStyle | None = None) -> str:
     style = style or RenderStyle()
+    if not plan.rooms:
+        return (
+            '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" '
+            f'font-family="{style.font_family}">'
+            f'<rect width="100%" height="100%" fill="{style.background}"/>'
+            f'<text x="200" y="100" text-anchor="middle" fill="{style.sublabel_color}" '
+            'font-size="14">empty plan — no rooms yet</text></svg>'
+        )
     t = _Transform(plan, style)
     wall_px = style.wall_thickness * style.scale
     parts: list[str] = [

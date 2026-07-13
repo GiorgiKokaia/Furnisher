@@ -88,5 +88,26 @@ def preview(
             render_once()
 
 
+@plan_app.command()
+def edit(
+    plan_file: Path = typer.Argument(..., help="Plan YAML file (created on first save)."),
+    port: int = typer.Option(8377, "--port", "-p"),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Don't open a browser tab."),
+) -> None:
+    """Open the browser-based layout editor for a plan YAML file."""
+    import threading
+    import webbrowser
+
+    import uvicorn
+
+    from furnisher.authoring.editor import create_app
+
+    url = f"http://127.0.0.1:{port}"
+    if not no_browser:
+        threading.Timer(0.8, webbrowser.open, args=(url,)).start()
+    typer.echo(f"editing {plan_file} at {url} (Ctrl+C to stop)")
+    uvicorn.run(create_app(plan_file), host="127.0.0.1", port=port, log_level="warning")
+
+
 if __name__ == "__main__":
     app()
