@@ -4,91 +4,122 @@
 <meta charset="utf-8">
 <title>Furnisher</title>
 <style>
+  :root {
+    --ink: #17161a; --bg: #f7f6f4; --surface: #fff; --border: #e7e5e0;
+    --text: #1c1b1f; --muted: #78736c; --faint: #a8a29a;
+    --accent: #2f6fed; --accent-hi: #1f5fe0; --danger: #b4453c;
+    --r: 12px; --shadow: 0 1px 2px rgba(20,20,24,0.04), 0 4px 12px rgba(20,20,24,0.05);
+    --ease: 160ms cubic-bezier(0.2, 0, 0.2, 1);
+  }
   * { box-sizing: border-box; margin: 0; }
   html, body { height: 100%; }
-  body { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; color: #333;
-         display: flex; flex-direction: column; background: #f5f3f0; }
-  header { display: flex; align-items: baseline; gap: 14px; padding: 10px 16px;
-           background: linear-gradient(90deg, #2f2a26, #4a4038); color: #eee; }
-  header .brand { font-weight: 700; letter-spacing: 0.5px; }
+  body { font-family: system-ui, 'Segoe UI Variable', 'Segoe UI', sans-serif; font-size: 14px;
+         color: var(--text); display: flex; flex-direction: column; background: var(--bg);
+         -webkit-font-smoothing: antialiased; }
+  header { display: flex; align-items: center; gap: 12px; padding: 0 16px; height: 52px;
+           background: var(--ink); color: #f4f3f1; }
+  header .brand { font-weight: 650; letter-spacing: -0.01em; }
+  header #projName { color: #b9b4ad; font-size: 13px; }
   header .spacer { flex: 1; }
-  header .budget { color: #d9c9a8; font-variant-numeric: tabular-nums; }
+  header .budget { color: #d5d1cb; font-size: 13px; font-variant-numeric: tabular-nums; }
   header .tags { display: flex; gap: 6px; }
-  header .tag { background: #6b5b46; color: #f3e9d8; border-radius: 999px; padding: 2px 10px;
-                font-size: 12px; }
+  header .tag { background: rgba(255,255,255,0.09); color: #dcd8d2; border-radius: 999px;
+                padding: 3px 10px; font-size: 11.5px;
+                box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); }
   main { flex: 1; display: flex; min-height: 0; }
-  #left { flex: 1.3; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid #ddd; }
-  #planBox { flex: 1; overflow: auto; background: #fff; padding: 8px; }
+  #left { flex: 1.3; display: flex; flex-direction: column; min-width: 0;
+          border-right: 1px solid var(--border); }
+  #planBox { flex: 1; overflow: auto; background: var(--surface); padding: 14px; }
   #planBox svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
-  #gallery { display: flex; gap: 8px; padding: 8px; overflow-x: auto; background: #ece8e2;
-             border-top: 1px solid #ddd; min-height: 118px; align-items: center; }
-  #gallery img { height: 100px; border-radius: 6px; cursor: pointer; border: 1px solid #ccc; }
-  #gallery .hint { color: #999; padding: 0 8px; }
-  #right { flex: 1; display: flex; flex-direction: column; min-width: 340px; max-width: 520px; }
-  #chat { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
-  .msg { padding: 9px 13px; border-radius: 12px; max-width: 92%; white-space: pre-wrap;
-         line-height: 1.45; box-shadow: 0 1px 2px rgba(0,0,0,0.07); }
-  .msg.user { background: #4a7fa5; color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
-  .msg.assistant { background: #fff; border: 1px solid #e4e0da; align-self: flex-start;
-                   border-bottom-left-radius: 4px; }
-  .msg.pending { opacity: 0.6; font-style: italic; }
+  #gallery { display: flex; gap: 10px; padding: 12px; overflow-x: auto; background: var(--bg);
+             border-top: 1px solid var(--border); min-height: 124px; align-items: center; }
+  #gallery img { height: 100px; border-radius: 10px; cursor: pointer; border: 1px solid var(--border);
+                 box-shadow: var(--shadow); transition: transform var(--ease); }
+  #gallery img:hover { transform: translateY(-2px); }
+  #gallery .hint { color: var(--faint); font-size: 13px; padding: 0 8px; }
+  #right { flex: 1; display: flex; flex-direction: column; min-width: 340px; max-width: 520px;
+           background: var(--surface); }
+  #chat { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { padding: 10px 14px; border-radius: 14px; max-width: 92%; white-space: pre-wrap;
+         line-height: 1.5; }
+  .msg.user { background: var(--accent); color: #fff; align-self: flex-end;
+              border-bottom-right-radius: 4px; }
+  .msg.assistant { background: #f4f2ef; align-self: flex-start; border-bottom-left-radius: 4px; }
+  .msg.pending { color: var(--muted); }
   .msg.pending::after { content: ""; display: inline-block; width: 10px; height: 10px;
-    margin-left: 8px; border: 2px solid #4a7fa5; border-top-color: transparent;
-    border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; }
+    margin-left: 8px; border: 2px solid var(--accent); border-top-color: transparent;
+    border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .optionCard { background: #fff; border: 1px solid #e4e0da; border-radius: 12px;
-    padding: 10px 12px; align-self: flex-start; max-width: 95%;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.07); }
-  .optionCard h4 { font-size: 13px; margin-bottom: 2px; }
-  .optionCard .total { color: #6b5b46; font-size: 12px; margin-bottom: 6px; }
-  .optionCard .mini { background: #faf8f5; border: 1px solid #eee; border-radius: 8px;
-    padding: 6px; margin-bottom: 8px; text-align: center; }
+  .optionCard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+    padding: 12px 13px; align-self: flex-start; max-width: 95%; box-shadow: var(--shadow); }
+  .optionCard h4 { font-size: 13.5px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 2px; }
+  .optionCard .total { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+  .optionCard .mini { background: var(--bg); border: 1px solid var(--border); border-radius: 9px;
+    padding: 8px; margin-bottom: 9px; text-align: center; }
   .optionCard .mini svg { max-width: 100%; height: auto; max-height: 180px; }
-  .optionCard .mini .miniNote { font-size: 10px; color: #a06a2c; margin-top: 2px; }
-  .optionCard .items { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
-  .optionCard .item { width: 84px; font-size: 10px; color: #555; text-align: center; }
+  .optionCard .mini .miniNote { font-size: 10px; color: #a06a2c; margin-top: 3px; }
+  .optionCard .items { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .optionCard .item { width: 84px; font-size: 10px; color: var(--muted); text-align: center; }
   .optionCard .item img, .thumbRow img, .optionCard .noimg {
-    width: 76px; height: 76px; object-fit: cover; border-radius: 8px;
-    border: 1px solid #e0dcd4; background: #f4f1ec; }
+    width: 76px; height: 76px; object-fit: cover; border-radius: 9px;
+    border: 1px solid var(--border); background: var(--bg); }
   .optionCard .noimg { display: flex; align-items: center; justify-content: center;
-    color: #a89e90; font-size: 10px; padding: 4px; }
-  .optionCard button { font: inherit; padding: 6px 14px; border: 0; border-radius: 8px;
-    background: #4a7fa5; color: #fff; cursor: pointer; }
-  .optionCard button:disabled { background: #b8b2a8; }
+    color: var(--faint); font-size: 10px; padding: 4px; }
+  .optionCard button { font: inherit; font-size: 13px; font-weight: 550; padding: 7px 14px;
+    border: 0; border-radius: 9px; background: var(--accent); color: #fff; cursor: pointer;
+    transition: background var(--ease); }
+  .optionCard button:hover:not(:disabled) { background: var(--accent-hi); }
+  .optionCard button:disabled { background: #c9c5be; }
   .thumbRow { display: flex; gap: 6px; align-self: flex-start; flex-wrap: wrap; }
-  #composer { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #ddd; background: #fff; }
-  #composer input { flex: 1; font: inherit; padding: 9px 12px; border: 1px solid #ccc; border-radius: 8px; }
+  .thumbRow img { cursor: pointer; }
+  #composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border);
+              background: var(--surface); }
+  #composer input { flex: 1; font: inherit; padding: 10px 13px; border: 1px solid var(--border);
+    border-radius: 10px; background: var(--bg); color: var(--text);
+    transition: border-color var(--ease), background var(--ease); }
+  #composer input:focus { outline: 0; background: var(--surface); border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(47,111,237,0.13); }
+  #composer input::placeholder { color: var(--faint); }
   #composer button, #toolRow button {
-    font: inherit; padding: 8px 14px; border: 0; border-radius: 8px; background: #4a7fa5;
-    color: #fff; cursor: pointer; }
-  #composer button:disabled { background: #9ab4c6; }
-  #toolRow { display: flex; gap: 6px; padding: 8px 10px; background: #fff; border-top: 1px solid #eee;
-             flex-wrap: wrap; }
-  #toolRow button { background: #6b6259; padding: 6px 10px; font-size: 12px; }
-  #issues { padding: 6px 12px; font-size: 12px; color: #8a3b34; background: #fdf0ef;
-            border-top: 1px solid #e8c5c2; max-height: 90px; overflow-y: auto; }
+    font: inherit; font-size: 13px; font-weight: 550; padding: 9px 16px; border: 0;
+    border-radius: 10px; background: var(--accent); color: #fff; cursor: pointer;
+    transition: background var(--ease); }
+  #composer button:hover:not(:disabled) { background: var(--accent-hi); }
+  #composer button:disabled { background: #a9bfe8; }
+  #toolRow { display: flex; gap: 6px; padding: 10px 12px; background: var(--surface);
+             border-top: 1px solid var(--border); flex-wrap: wrap; }
+  #toolRow button { background: #f4f2ef; color: #423e39; padding: 6px 11px; font-size: 12px;
+                    box-shadow: inset 0 0 0 1px var(--border); }
+  #toolRow button:hover { background: #eae7e2; }
+  #issues { padding: 8px 12px; font-size: 12px; color: var(--danger); background: #fcf2f1;
+            border-top: 1px solid #f0dcd9; max-height: 90px; overflow-y: auto; }
   #issues:empty { display: none; }
   #planBox [data-pid] { cursor: pointer; }
   /* labels and ticks must not swallow clicks meant for the piece under them */
   #planBox text, #planBox polyline { pointer-events: none; }
-  #planBox [data-pid].selected { stroke: #d97706; stroke-width: 3.5; }
-  #pieceBar { position: absolute; display: flex; align-items: center; gap: 4px; background: #2f2a26;
-              padding: 6px; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 5; }
-  #pieceBar .pieceThumb { width: 42px; height: 42px; object-fit: cover; border-radius: 6px;
-              background: #4a433e; cursor: pointer; }
-  #pieceBar button { background: #4a433e; border: 0; color: #eee; border-radius: 6px;
-                     padding: 5px 9px; cursor: pointer; font-size: 14px; }
-  #pieceBar button:hover { background: #6b5b46; }
-  #pieceBar .name { color: #d9c9a8; font-size: 12px; align-self: center; padding: 0 6px; }
+  #planBox [data-pid].selected { stroke: var(--accent); stroke-width: 3.5; }
+  #pieceBar { position: absolute; display: flex; align-items: center; gap: 4px; background: var(--ink);
+              padding: 6px; border-radius: 11px; box-shadow: 0 8px 28px rgba(20,20,24,0.28);
+              z-index: 5; }
+  #pieceBar .pieceThumb { width: 42px; height: 42px; object-fit: cover; border-radius: 7px;
+              background: #35333a; cursor: pointer; }
+  #pieceBar button { background: rgba(255,255,255,0.09); border: 0; color: #eceae7;
+                     border-radius: 7px; padding: 5px 9px; cursor: pointer; font-size: 14px;
+                     transition: background var(--ease); }
+  #pieceBar button:hover { background: rgba(255,255,255,0.18); }
+  #pieceBar .name { color: #b9b4ad; font-size: 12px; align-self: center; padding: 0 6px; }
   #left { position: relative; }
-  #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex;
-             align-items: center; justify-content: center; z-index: 10; }
-  #overlay img { max-width: 94vw; max-height: 94vh; border-radius: 8px; }
+  #overlay { position: fixed; inset: 0; background: rgba(16,16,20,0.82); display: flex;
+             align-items: center; justify-content: center; z-index: 10;
+             backdrop-filter: blur(3px); }
+  #overlay img { max-width: 94vw; max-height: 94vh; border-radius: 12px;
+                 box-shadow: 0 24px 60px rgba(0,0,0,0.5); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>
 </head>
 <body>
 <header>
-  <a class="brand" href="/" title="Back to layouts" style="color:#eee;text-decoration:none">☰ Furnisher</a>
+  <a class="brand" href="/" title="Back to layouts" style="color:inherit;text-decoration:none">☰ Furnisher</a>
   <span id="projName"></span>
   <span class="tags" id="styleTags"></span>
   <span class="spacer"></span>

@@ -4,109 +4,183 @@
 <meta charset="utf-8">
 <title>Furnisher — layouts</title>
 <style>
+  :root {
+    --ink: #17161a; --bg: #f7f6f4; --surface: #fff; --border: #e7e5e0;
+    --text: #1c1b1f; --muted: #78736c; --faint: #a8a29a;
+    --accent: #2f6fed; --accent-hi: #1f5fe0; --go: #2e7d5b; --go-hi: #266a4d; --danger: #b4453c;
+    --r: 12px; --shadow: 0 1px 2px rgba(20,20,24,0.04), 0 4px 12px rgba(20,20,24,0.05);
+    --shadow-lift: 0 2px 4px rgba(20,20,24,0.05), 0 12px 28px rgba(20,20,24,0.09);
+    --ease: 160ms cubic-bezier(0.2, 0, 0.2, 1);
+  }
   * { box-sizing: border-box; margin: 0; }
-  body { font-family: 'Segoe UI', system-ui, sans-serif; color: #333; background: #f5f3f0;
-         min-height: 100vh; }
-  header { display: flex; align-items: center; gap: 14px; padding: 14px 22px;
-           background: linear-gradient(90deg, #2f2a26, #4a4038); color: #eee; }
-  header .brand { font-weight: 700; letter-spacing: 0.5px; font-size: 17px; }
-  header .sub { color: #cbb994; font-size: 13px; }
+  body { font-family: system-ui, 'Segoe UI Variable', 'Segoe UI', sans-serif; color: var(--text);
+         background: var(--bg); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  header { display: flex; align-items: center; gap: 14px; padding: 0 22px; height: 60px;
+           background: var(--ink); color: #f4f3f1; position: sticky; top: 0; z-index: 5; }
+  header .brand { font-weight: 650; letter-spacing: -0.01em; font-size: 16px; }
+  header .sub { color: #8f8a83; font-size: 13px; }
   header .spacer { flex: 1; }
-  header button { font: inherit; font-weight: 600; padding: 9px 16px; border: 0; border-radius: 8px;
-                  background: #3f7a4a; color: #fff; cursor: pointer; }
-  header button:hover { background: #4a8c57; }
-  main { max-width: 1100px; margin: 0 auto; padding: 26px 22px; }
-  h2 { font-size: 15px; font-weight: 600; color: #6b6259; margin-bottom: 14px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 18px; }
-  .card { background: #fff; border: 1px solid #e4e0da; border-radius: 12px; overflow: hidden;
-          display: flex; flex-direction: column; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-  .thumb { height: 150px; background: #faf8f5; display: flex; align-items: center;
-           justify-content: center; border-bottom: 1px solid #eee; padding: 8px; overflow: hidden; }
+  header button { font: inherit; font-size: 13px; font-weight: 550; padding: 8px 14px; border: 0;
+                  border-radius: 9px; cursor: pointer; transition: background var(--ease); }
+  header .quick { background: var(--accent); color: #fff; }
+  header .quick:hover { background: var(--accent-hi); }
+  header .newbtn { background: rgba(255,255,255,0.09); color: #eceae7;
+                   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.11); }
+  header .newbtn:hover { background: rgba(255,255,255,0.15); }
+  main { max-width: 1180px; margin: 0 auto; padding: 34px 22px 56px; }
+  section + section { margin-top: 40px; }
+  h2 { font-size: 19px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 3px; }
+  .sectionhint { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+          overflow: hidden; display: flex; flex-direction: column; box-shadow: var(--shadow);
+          transition: box-shadow var(--ease), transform var(--ease), border-color var(--ease); }
+  .card:hover { box-shadow: var(--shadow-lift); transform: translateY(-2px); border-color: #dcd9d3; }
+  /* a session in progress reads as "live": tinted edge + a rule in the accent colour */
+  .card.progress { border-color: #cfe3d8; }
+  .card.progress .thumb { box-shadow: inset 0 3px 0 -1px var(--go); }
+  .thumb { height: 158px; background:
+             radial-gradient(120% 100% at 50% 0%, #fcfbfa 0%, #f2f0ec 100%);
+           display: flex; align-items: center; justify-content: center;
+           border-bottom: 1px solid var(--border); padding: 14px; overflow: hidden; }
   .thumb svg { max-width: 100%; max-height: 100%; }
-  .thumb.err { color: #a08; font-size: 12px; color: #8a3b34; padding: 12px; text-align: center; }
-  .body { padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
-  .body .name { font-weight: 600; font-size: 15px; }
-  .body .meta { color: #8a8178; font-size: 12px; }
-  .body .badge { align-self: flex-start; margin-top: 2px; font-size: 11px; color: #3f7a4a;
-                 background: #eaf3ec; border-radius: 999px; padding: 1px 9px; }
-  .actions { display: flex; gap: 8px; padding: 0 14px 14px; }
-  .actions a { flex: 1; text-align: center; text-decoration: none; font: inherit; font-size: 13px;
-               padding: 8px 0; border-radius: 8px; cursor: pointer; }
-  .actions .furnish { background: #4a7fa5; color: #fff; font-weight: 600; }
-  .actions .furnish:hover { background: #5a90b6; }
-  .actions .edit { background: #efece7; color: #4a4038; border: 1px solid #e0dcd4; }
-  .actions .edit:hover { background: #e6e1da; }
-  .empty { color: #999; padding: 30px 0; }
+  .thumb.err { font-size: 12px; color: var(--danger); padding: 12px; text-align: center; }
+  .body { padding: 14px 15px 12px; display: flex; flex-direction: column; gap: 5px; flex: 1; }
+  .body .name { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+  .body .meta { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .body .badge { align-self: flex-start; margin-top: 3px; font-size: 11px; font-weight: 550;
+                 color: var(--go); background: #eaf4ef; border-radius: 999px; padding: 3px 9px; }
+  .actions { display: flex; gap: 8px; padding: 0 15px 15px; flex-wrap: wrap; }
+  .actions a, .actions button { flex: 1; text-align: center; text-decoration: none; font: inherit;
+     font-size: 13px; font-weight: 550; padding: 9px 8px; border-radius: 9px; cursor: pointer;
+     border: 0; white-space: nowrap; transition: background var(--ease), color var(--ease); }
+  .actions .primary { background: var(--accent); color: #fff; }
+  .actions .primary:hover { background: var(--accent-hi); }
+  .actions .go { background: var(--go); color: #fff; }
+  .actions .go:hover { background: var(--go-hi); }
+  .actions .ghost { background: #f4f2ef; color: #423e39; box-shadow: inset 0 0 0 1px var(--border); }
+  .actions .ghost:hover { background: #eae7e2; }
+  .actions .danger { background: transparent; color: var(--muted); flex: 0 0 auto;
+                     box-shadow: inset 0 0 0 1px var(--border); }
+  .actions .danger:hover { background: #fcf2f1; color: var(--danger); }
+  .empty { color: var(--faint); font-size: 13.5px; padding: 28px 0; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>
 </head>
 <body>
 <header>
   <span class="brand">Furnisher</span>
-  <span class="sub">pick a layout to furnish, or draw a new one</span>
+  <span class="sub">continue a design, or start fresh with a room</span>
   <span class="spacer"></span>
-  <button id="newBtn">+ New layout</button>
+  <button class="quick" id="quickBtn" title="Instantly create a single room and start furnishing">⚡ Start from scratch</button>
+  <button class="newbtn" id="newBtn" title="Draw a full floor plan in the editor">✎ New layout</button>
 </header>
 <main>
-  <h2>Your layouts</h2>
-  <div class="grid" id="grid"><div class="empty">loading…</div></div>
+  <section id="continueSection" style="display:none">
+    <h2>Continue where you left off</h2>
+    <div class="sectionhint">furnish sessions you've already started</div>
+    <div class="grid" id="continueGrid"></div>
+  </section>
+  <section>
+    <h2>Start fresh</h2>
+    <div class="sectionhint">pick a layout to furnish from scratch, or use ⚡ / ✎ above</div>
+    <div class="grid" id="freshGrid"><div class="empty">loading…</div></div>
+  </section>
 </main>
 <script>
 "use strict";
-const grid = document.getElementById("grid");
+const ROOM_TYPES = "living_room, bedroom, kitchen, office, dining_room, bathroom";
 
-function card(s) {
+function thumb(s) {
+  const t = document.createElement("div");
+  if (s.error) { t.className = "thumb err"; t.textContent = "⚠ " + s.error; }
+  else { t.className = "thumb"; t.innerHTML = s.svg || ""; }
+  return t;
+}
+
+function action(cls, label, href) {
+  const a = document.createElement("a");
+  a.className = cls; a.textContent = label; a.href = href;
+  return a;
+}
+
+function continueCard(s) {
   const el = document.createElement("div");
-  el.className = "card";
-  const thumb = document.createElement("div");
-  if (s.error) { thumb.className = "thumb err"; thumb.textContent = "⚠ " + s.error; }
-  else { thumb.className = "thumb"; thumb.innerHTML = s.svg || ""; }
+  el.className = "card progress";
   const body = document.createElement("div");
   body.className = "body";
-  const name = document.createElement("div");
-  name.className = "name"; name.textContent = s.name;
-  const meta = document.createElement("div");
-  meta.className = "meta";
-  meta.textContent = `${s.rooms} room${s.rooms === 1 ? "" : "s"} · ${s.area} m²`;
-  body.append(name, meta);
-  if (s.has_project) {
-    const badge = document.createElement("div");
-    badge.className = "badge"; badge.textContent = "furnishing in progress";
-    body.append(badge);
-  }
+  body.innerHTML = `<div class="name">${s.name}</div>` +
+    `<div class="meta">${s.rooms} room${s.rooms === 1 ? "" : "s"} · ${s.area} m²</div>`;
+  const badge = document.createElement("div");
+  badge.className = "badge";
+  badge.textContent = s.items ? `${s.items} item${s.items === 1 ? "" : "s"} placed` : "session started";
+  body.append(badge);
   const actions = document.createElement("div");
   actions.className = "actions";
-  const furnish = document.createElement("a");
-  furnish.className = "furnish";
-  furnish.href = "/hub/furnish/" + encodeURIComponent(s.id);
-  furnish.textContent = s.has_project ? "Continue →" : "Furnish →";
-  const edit = document.createElement("a");
-  edit.className = "edit";
-  edit.href = "/hub/edit/" + encodeURIComponent(s.id);
-  edit.textContent = "Edit layout";
-  actions.append(furnish, edit);
-  el.append(thumb, body, actions);
+  actions.append(action("go", "Continue →", "/hub/furnish/" + encodeURIComponent(s.id)));
+  const over = document.createElement("button");
+  over.className = "danger"; over.textContent = "Start over"; over.title = "discard this session and re-furnish from scratch";
+  over.onclick = () => {
+    if (confirm(`Start ${s.name} over? This discards the current furnishing.`))
+      window.location.href = "/hub/restart/" + encodeURIComponent(s.id);
+  };
+  actions.append(over);
+  el.append(thumb(s), body, actions);
+  return el;
+}
+
+function freshCard(s) {
+  const el = document.createElement("div");
+  el.className = "card";
+  const body = document.createElement("div");
+  body.className = "body";
+  body.innerHTML = `<div class="name">${s.name}</div>` +
+    `<div class="meta">${s.rooms} room${s.rooms === 1 ? "" : "s"} · ${s.area} m²</div>`;
+  const actions = document.createElement("div");
+  actions.className = "actions";
+  actions.append(action("primary", "Furnish →", "/hub/furnish/" + encodeURIComponent(s.id)));
+  actions.append(action("ghost", "Edit", "/hub/edit/" + encodeURIComponent(s.id)));
+  el.append(thumb(s), body, actions);
   return el;
 }
 
 async function load() {
-  const resp = await fetch("hub/samples");
-  const { samples } = await resp.json();
-  grid.innerHTML = "";
-  if (!samples.length) {
-    grid.innerHTML = '<div class="empty">No layouts yet — click “New layout” to draw one.</div>';
-    return;
+  const { samples } = await (await fetch("hub/samples")).json();
+  const inProgress = samples.filter(s => s.in_progress);
+  const fresh = samples.filter(s => !s.in_progress);
+
+  const contSection = document.getElementById("continueSection");
+  const contGrid = document.getElementById("continueGrid");
+  contGrid.innerHTML = "";
+  contSection.style.display = inProgress.length ? "" : "none";
+  inProgress.forEach(s => contGrid.append(continueCard(s)));
+
+  const freshGrid = document.getElementById("freshGrid");
+  freshGrid.innerHTML = "";
+  if (!fresh.length) {
+    freshGrid.innerHTML =
+      '<div class="empty">No untouched layouts — use ⚡ Start from scratch or ✎ New layout.</div>';
   }
-  samples.forEach(s => grid.append(card(s)));
+  fresh.forEach(s => freshGrid.append(freshCard(s)));
 }
 
-document.getElementById("newBtn").addEventListener("click", async () => {
+document.getElementById("newBtn").onclick = async () => {
   const name = prompt("Name this layout:", "My apartment");
   if (name === null) return;
-  const resp = await fetch("hub/new", {method: "POST",
-    headers: {"Content-Type": "application/json"}, body: JSON.stringify({name})});
-  const body = await resp.json();
-  window.location.href = body.editor_url;
-});
+  const b = await (await fetch("hub/new", {method: "POST",
+    headers: {"Content-Type": "application/json"}, body: JSON.stringify({name})})).json();
+  window.location.href = b.editor_url;
+};
+
+document.getElementById("quickBtn").onclick = async () => {
+  const room_type = (prompt("Which room do you want to furnish?\n(" + ROOM_TYPES + ")",
+                            "living_room") || "").trim();
+  if (!room_type) return;
+  const b = await (await fetch("hub/quick-room", {method: "POST",
+    headers: {"Content-Type": "application/json"}, body: JSON.stringify({room_type})})).json();
+  if (b.error) { alert(b.error); return; }
+  window.location.href = "/hub/furnish/" + encodeURIComponent(b.sample_id);
+};
 
 load();
 </script>
