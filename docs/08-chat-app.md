@@ -34,9 +34,18 @@ room-photo gallery, per-room camera buttons, undo, budget header. Web app v2 add
 
 ## Single entry point — the launcher (`furnisher start`)
 
-One command, one URL (`src/furnisher/hub/`). The home page (`hub/home.html`) lists the user's
-**layout library** with thumbnails and offers *New layout*; picking one either opens the editor
-or jumps straight into furnish mode. This is the front door the user actually starts from.
+One command, one URL (`src/furnisher/hub/`). The home page (`hub/home.html`) splits into
+**Continue where you left off** (layouts with an existing furnish session — `in_progress`) and
+**Start fresh** (untouched layouts + the two new-start buttons). This is the front door: resume
+a design, or start from scratch.
+
+- **Continue** cards → `Continue →` (`/hub/furnish/{id}`) and `Start over`
+  (`/hub/restart/{id}`, which `reset_project` = discard the session and re-furnish the layout).
+- **⚡ Start from scratch** → `/hub/quick-room`: `create_room_sample` writes a minimal
+  single-room layout (one door + window, chosen room type) and jumps straight into furnishing —
+  no floor-plan drawing needed.
+- **✎ New layout** → the editor for a full multi-room plan (as before).
+- **Start-fresh** cards → `Furnish →` / `Edit`.
 
 - **Workspace** (`hub/workspace.py`): a directory with `samples/<id>.yaml` (the layout library —
   every saved layout lands here and becomes a future sample) and `projects/<id>/` (one furnish
@@ -117,6 +126,8 @@ want a smaller one?") — `LayoutIssue` messages are written for exactly this.
 - [x] Unified launcher (`furnisher start`, `hub/`): workspace of layout samples + per-layout
       furnish projects, home page with thumbnails, editor/furnish mounted under one server
       with swappable target/session; new layouts auto-become samples
+- [x] Launcher home splits Continue (in-progress sessions, with Start-over/reset) from Start
+      fresh; ⚡ quick-room starts furnishing a single room from scratch in one click
 - [x] Replace a placed item from chat ("replace the sofa with a cheaper one") or the piece
       popup's ⇄ button — `replace_item` intent → grounded `propose_replacement` → swap
 - [x] Incremental edits from chat that keep the rest of the design: `add_item` ("add a rug")

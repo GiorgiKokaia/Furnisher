@@ -13,11 +13,14 @@ the launcher is never empty.
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 from pathlib import Path
 
 from furnisher.authoring import PlanLoadError, load_plan
+from furnisher.authoring.serializer import save_plan
+from furnisher.model import DoorSwing, FloorPlan, Opening, OpeningKind, Room, RoomType
 from furnisher.project import Project
 from furnisher.render2d import RenderStyle, render_plan
 
@@ -61,18 +64,48 @@ class Workspace:
             n += 1
         return candidate
 
+    def create_room_sample(
+        self, name: str, room_type: str = "living_room", width: float = 5.0, depth: float = 4.0
+    ) -> str:
+        """Write a minimal single-room layout (one door + one window) and return its id — the
+        one-click 'start from scratch with a room' path."""
+        try:
+            rtype = RoomType(room_type)
+        except ValueError:
+            rtype = RoomType.living_room
+        w = max(2.5, float(width))
+        d = max(2.5, float(depth))
+        rid = _slugify(rtype.value)
+        sample_id = self.new_sample_id(name)
+        room = Room(id=rid, type=rtype, polygon=[(0.0, 0.0), (w, 0.0), (w, d), (0.0, d)])
+        door = Opening(
+            id="door", kind=OpeningKind.door, room=rid, edge=0,
+            offset=round(max(0.0, w / 2 - 0.45), 2), width=0.9,
+            swing=DoorSwing.inward_left, connects="exterior",
+        )
+        window = Opening(
+            id="window", kind=OpeningKind.window, room=rid, edge=2,
+            offset=round(max(0.0, w / 2 - 0.9), 2), width=min(1.8, w - 0.4), sill_height=0.85,
+        )
+        save_plan(FloorPlan(name=name, rooms=[room], openings=[door, window]),
+                  self.sample_path(sample_id))
+        return sample_id
+
     def list_samples(self) -> list[dict]:
         """Every saved layout, newest first, with a thumbnail and whether it has a session."""
         thumb_style = RenderStyle(scale=26, padding=0.2)
         out = []
         for path in self.samples_dir.glob("*.yaml"):
             sample_id = path.stem
+            has_project = (self.projects_dir / sample_id / "project.json").exists()
             entry = {
                 "id": sample_id,
                 "name": sample_id,
                 "rooms": 0,
                 "area": 0.0,
-                "has_project": (self.projects_dir / sample_id / "project.json").exists(),
+                "has_project": has_project,
+                "in_progress": has_project,  # a furnish session exists — offer "Continue"
+                "items": self._placement_count(sample_id) if has_project else 0,
                 "svg": "",
                 "error": None,
                 "mtime": path.stat().st_mtime,
@@ -93,6 +126,15 @@ class Workspace:
     def project_dir(self, sample_id: str) -> Path:
         return self.projects_dir / sample_id
 
+    def _placement_count(self, sample_id: str) -> int:
+        f = self.project_dir(sample_id) / "placements.json"
+        if not f.exists():
+            return 0
+        try:
+            return len(json.loads(f.read_text(encoding="utf-8")).get("placements", []))
+        except (ValueError, OSError):
+            return 0
+
     def open_or_create_project(self, sample_id: str) -> Path:
         """The furnish project for a layout, created from the layout on first open."""
         if not self.has_sample(sample_id):
@@ -101,3 +143,10 @@ class Workspace:
         if not (proj / "project.json").exists():
             Project.create(proj, self.sample_path(sample_id))
         return proj
+
+    def reset_project(self, sample_id: str) -> Path:
+        """Throw away the furnish session and start it over from the layout (from scratch)."""
+        if not self.has_sample(sample_id):
+            raise FileNotFoundError(f"no layout named {sample_id!r}")
+        shutil.rmtree(self.project_dir(sample_id), ignore_errors=True)
+        return self.open_or_create_project(sample_id)

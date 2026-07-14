@@ -4,8 +4,10 @@
 `/editor/…`        the plan editor (mounted), pointed at the chosen/new layout
 `/furnish/…`       the furnish app (mounted), pointed at the chosen layout's project
 `/hub/new`         reserve a new layout id and open the editor on it
+`/hub/quick-room`  create a minimal single-room layout and open it (start from scratch)
 `/hub/edit/{id}`   open the editor on an existing layout
 `/hub/furnish/{id}` create-or-continue the layout's furnish session, then jump into it
+`/hub/restart/{id}` throw away the session and furnish the layout from scratch
 
 The editor and furnish apps are the same ones used standalone; the hub just swaps which
 layout/project they point at (via `EditorTarget` / `FurnishSession`) and mounts them here.
@@ -51,6 +53,18 @@ def create_hub(workspace: Workspace, llm, catalog=None) -> FastAPI:
         editor_target.set(workspace.sample_path(sample_id), sample_id, name)
         return {"sample_id": sample_id, "editor_url": "/editor/"}
 
+    @hub.post("/hub/quick-room")
+    def quick_room(body: dict):
+        room_type = (body.get("room_type") or "living_room").strip() or "living_room"
+        name = (body.get("name") or "").strip() or room_type.replace("_", " ").title()
+        sample_id = workspace.create_room_sample(
+            name,
+            room_type=room_type,
+            width=float(body.get("width") or 5.0),
+            depth=float(body.get("depth") or 4.0),
+        )
+        return {"sample_id": sample_id}
+
     @hub.get("/hub/edit/{sample_id}")
     def edit(sample_id: str):
         if not workspace.has_sample(sample_id):
@@ -62,6 +76,15 @@ def create_hub(workspace: Workspace, llm, catalog=None) -> FastAPI:
     def furnish(sample_id: str):
         try:
             project_dir = workspace.open_or_create_project(sample_id)
+        except (FileNotFoundError, ValueError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        session.open(project_dir)
+        return RedirectResponse("/furnish/", status_code=303)
+
+    @hub.get("/hub/restart/{sample_id}")
+    def restart(sample_id: str):
+        try:
+            project_dir = workspace.reset_project(sample_id)
         except (FileNotFoundError, ValueError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         session.open(project_dir)

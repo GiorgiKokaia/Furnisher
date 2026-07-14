@@ -42,11 +42,13 @@ uv sync
 uv run furnisher start        # the launcher — pick or draw a layout, then furnish it
 ```
 
-`furnisher start` opens a **home page**: pick a layout from your library (seeded with a few
-starters + your `my-apartment.yaml`) or click *New layout* to draw one. Picking one jumps
-straight into furnish mode; every layout you save becomes a sample for next time. Layouts and
-furnish sessions live under `./workspace/` (gitignored). One furnish project per layout, so
-re-opening a layout continues where you left off.
+`furnisher start` opens a **home page** with two lanes: **Continue where you left off** (furnish
+sessions you've already started, each with a *Start over* to reset) and **Start fresh**. Start
+fresh three ways: **⚡ Start from scratch** spins up a single room and drops you straight into
+furnishing; **✎ New layout** opens the editor to draw a full floor plan; or pick any layout from
+your library (seeded with a few starters + your `my-apartment.yaml`) and furnish it. Every layout
+you save becomes a sample for next time. Layouts and furnish sessions live under `./workspace/`
+(gitignored) — one furnish project per layout, so re-opening continues where you left off.
 
 The individual pieces are still addressable directly:
 

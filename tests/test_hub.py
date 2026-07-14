@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from furnisher.catalog import Catalog
 from furnisher.catalog.adapters.generic import GenericProvider
 from furnisher.hub import Workspace, create_hub
+from furnisher.project import Project
 
 
 class FakeLLM:
@@ -108,3 +109,41 @@ def test_furnish_reopens_same_project(client, workspace):
     # re-selecting continues the same project (does not recreate it)
     client.get("/hub/furnish/studio", follow_redirects=False)
     assert marker.read_text(encoding="utf-8") == first
+
+
+def test_quick_room_creates_single_room_and_furnishes(client, workspace):
+    body = client.post("/hub/quick-room", json={"room_type": "bedroom"}).json()
+    sid = body["sample_id"]
+    assert workspace.has_sample(sid)
+    from furnisher.authoring import load_plan
+
+    plan = load_plan(workspace.sample_path(sid))
+    assert len(plan.rooms) == 1 and plan.rooms[0].type.value == "bedroom"
+    # it's furnishable straight away
+    r = client.get(f"/hub/furnish/{sid}", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/furnish/"
+    assert client.get("/furnish/api/state").json()["rooms"]
+
+
+def test_start_over_discards_the_session(client, workspace):
+    # furnish studio and place something, then restart
+    client.get("/hub/furnish/studio", follow_redirects=False)
+    proj = Project.load(workspace.project_dir("studio"))
+    from furnisher.model import Placement
+
+    proj.placements = [Placement(id="x", item_ref="generic:loft-sofa-3", room="main",
+                                 position=(2.5, 2.0), rotation=0)]
+    proj.save()
+    assert workspace._placement_count("studio") == 1
+
+    r = client.get("/hub/restart/studio", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/furnish/"
+    assert workspace._placement_count("studio") == 0  # started over from scratch
+
+
+def test_samples_report_in_progress(client, workspace):
+    before = {s["id"]: s for s in client.get("/hub/samples").json()["samples"]}
+    assert before["studio"]["in_progress"] is False
+    client.get("/hub/furnish/studio", follow_redirects=False)
+    after = {s["id"]: s for s in client.get("/hub/samples").json()["samples"]}
+    assert after["studio"]["in_progress"] is True
