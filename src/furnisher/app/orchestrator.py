@@ -19,6 +19,7 @@ class Orchestrator:
         self.agent = DesignAgent(llm, catalog)
         self.on_progress = on_progress  # callable(str) for live status, e.g. streaming UIs
         self.pending_options = None  # {"room": str, "options": [RoomOption]}
+        self.last_inspiration: list[str] = []  # filenames from the most recent inspiration pull
 
     def _progress(self, message: str) -> None:
         if self.on_progress is not None:
@@ -127,6 +128,7 @@ class Orchestrator:
             saved.append(path)
         if not saved:
             return "could not download any inspiration photos"
+        self.last_inspiration = [p.name for p in saved]
         reply = self._apply_style_from(saved, notes or f"IKEA lifestyle photos for: {query}")
         return f"pulled {len(saved)} IKEA photos into inspiration/ — {reply}"
 

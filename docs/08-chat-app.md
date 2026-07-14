@@ -15,6 +15,13 @@ per-room camera buttons, undo, budget header. Web app v2 additions:
   nudge/rotate/delete).
 - **🏠 apartment view**: whole-apartment isometric cutaway via Nano Banana grounded on the
   furnished plan (`/api/apartment-image`, cached by content hash).
+- **✨ inspiration photos are shown**: `/api/inspire-ikea` downloads the IKEA lifestyle shots
+  into `inspiration/` (served via a static mount) and returns their URLs; the app renders them
+  as a clickable thumbnail row in chat (click to enlarge) — you see what the style was pulled
+  from, not just a text summary.
+- **Piece popup shows the product**: `state()` placements now carry `image`/`url`/`price`/`dims`;
+  selecting a placed piece renders its product photo in the floating toolbar (click to enlarge),
+  so you can see *what* you're nudging, not just its id.
 **Depends on:** all of 01–07 (this is the integration layer)
 **Code home:** `src/furnisher/app/`
 

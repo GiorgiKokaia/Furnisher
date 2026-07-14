@@ -53,10 +53,12 @@ uv run furnisher chat my-place                # same brain, terminal REPL
 uv run furnisher render room my-place Sleep   # grounded photoreal room image (Nano Banana)
 ```
 
-In the app: set a budget, pull IKEA inspiration photos (✨), ask for a room — the agent
-streams its progress, proposes 2-3 options as cards with product photos, and places the
-one you pick. Drag pieces to adjust (they snap to walls, every move is validated), use
-the 📷 buttons for photoreal room images and 🏠 for a whole-apartment cutaway view.
+In the app: set a budget, pull IKEA inspiration photos (✨ — the actual lifestyle shots
+appear in chat), ask for a room — the agent streams its progress, proposes 2-3 options as
+cards with product photos, and places the one you pick. Click a placed piece to see its
+product photo and drag it to adjust (snaps to walls, every move validated). Use the 📷
+buttons for photoreal room images and 🏠 for a whole-apartment cutaway — both grounded on a
+programmatic spatial brief of the plan so the render matches the actual layout.
 
 Remaining: layout-quality iteration (the greedy solver is legal but not always elegant),
 more catalog providers (Georgia-reachable), free-space connectivity check, 2D->3D stretch

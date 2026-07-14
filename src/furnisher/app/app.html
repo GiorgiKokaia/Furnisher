@@ -68,8 +68,10 @@
   /* labels and ticks must not swallow clicks meant for the piece under them */
   #planBox text, #planBox polyline { pointer-events: none; }
   #planBox [data-pid].selected { stroke: #d97706; stroke-width: 3.5; }
-  #pieceBar { position: absolute; display: flex; gap: 4px; background: #2f2a26; padding: 6px;
-              border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 5; }
+  #pieceBar { position: absolute; display: flex; align-items: center; gap: 4px; background: #2f2a26;
+              padding: 6px; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 5; }
+  #pieceBar .pieceThumb { width: 42px; height: 42px; object-fit: cover; border-radius: 6px;
+              background: #4a433e; cursor: pointer; }
   #pieceBar button { background: #4a433e; border: 0; color: #eee; border-radius: 6px;
                      padding: 5px 9px; cursor: pointer; font-size: 14px; }
   #pieceBar button:hover { background: #6b5b46; }
@@ -109,6 +111,7 @@
 const $ = id => document.getElementById(id);
 let busy = false;
 let selectedPid = null;
+let placements = [];  // current placed items (from state), for the piece popup
 
 // --- click-to-adjust + drag placements ---
 let svgScale = 80;  // px per meter, refreshed from state
@@ -164,9 +167,20 @@ function highlightSelected() {
   if (!el) { selectedPid = null; return; }
   const bar2 = document.createElement("div");
   bar2.id = "pieceBar";
+  const p = placements.find(pl => pl.id === selectedPid);
+  if (p && p.image) {
+    const thumb = document.createElement("img");
+    thumb.className = "pieceThumb";
+    thumb.referrerPolicy = "no-referrer";  // IKEA CDN rejects foreign-Referer hotlinks
+    thumb.src = p.image;
+    thumb.title = "click to enlarge";
+    thumb.addEventListener("click", () => showOverlay(p.image));
+    bar2.append(thumb);
+  }
   const name = document.createElement("span");
   name.className = "name";
-  name.textContent = selectedPid;
+  name.textContent = p ? `${p.item} · ${p.dims}` : selectedPid;
+  if (p) name.title = `${p.item} — ${Math.round(p.price)} ${p.currency}`;
   bar2.append(name);
   const actions = [
     ["←", () => movePiece(-0.1, 0)], ["→", () => movePiece(0.1, 0)],
@@ -185,7 +199,7 @@ function highlightSelected() {
   const left = $("left").getBoundingClientRect();
   document.getElementById("left").append(bar2);
   bar2.style.left = Math.max(6, box.left - left.left) + "px";
-  bar2.style.top = Math.max(6, box.top - left.top - 44) + "px";
+  bar2.style.top = Math.max(6, box.top - left.top - 60) + "px";
 }
 
 function selectPiece(pid) {
@@ -218,6 +232,7 @@ window.addEventListener("keydown", e => {
 
 function applyState(s) {
   svgScale = s.svg_scale || 80;
+  placements = s.placements || [];
   $("projName").textContent = s.name;
   const tags = $("styleTags");
   tags.innerHTML = "";
@@ -268,6 +283,7 @@ function applyState(s) {
       const body = await r.json();
       pending.remove();
       addMsg("assistant", body.reply ?? body.error ?? "(no reply)");
+      if (body.images && body.images.length) addImageRow(body.images);
       if (body.state) applyState(body.state);
     } catch (exc) { pending.remove(); addMsg("assistant", "error: " + exc); }
     setBusy(false);
@@ -399,6 +415,23 @@ function addThumbRow(items) {
     img.src = item.image;
     img.title = item.name;
     img.addEventListener("click", () => showOverlay(item.image));
+    row.append(img);
+  });
+  if (row.children.length) {
+    $("chat").append(row);
+    $("chat").scrollTop = $("chat").scrollHeight;
+  }
+}
+
+function addImageRow(urls) {
+  // local inspiration photos — served same-origin, so no referrerPolicy dance needed
+  const row = document.createElement("div");
+  row.className = "thumbRow";
+  urls.forEach(url => {
+    const img = document.createElement("img");
+    img.src = url;
+    img.loading = "lazy";
+    img.addEventListener("click", () => showOverlay(url));
     row.append(img);
   });
   if (row.children.length) {

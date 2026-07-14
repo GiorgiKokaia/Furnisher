@@ -17,7 +17,7 @@ from furnisher.render2d import render_room_crop
 
 log = logging.getLogger(__name__)
 
-RECIPE_VERSION = "v1"
+RECIPE_VERSION = "v2"  # bumped when the prompt recipe changes so cached images regenerate
 MAX_PRODUCT_PHOTOS = 5
 
 PROMPT_TEMPLATE = """\
@@ -33,13 +33,19 @@ Room: {room_type}, {width:.1f} × {depth:.1f} m, ceiling {ceiling:.1f} m.
 Furniture (numbers match the plan):
 {legend}
 
+SPATIAL LAYOUT — this is the ground truth; follow it exactly. The schematic and this text
+describe the SAME room; where they seem to differ, trust this text:
+{layout}
+
 Style: {style}.
 
 Camera: {camera}.
 
 Rules:
-- Every piece of furniture must appear at the plan's position and orientation, with
-  believable real-world scale for the given dimensions.
+- Compose the photo from the stated camera viewpoint. Every item must land where the layout
+  says (left/right of frame, foreground/background, against the stated wall) and face the
+  stated direction. Do not rearrange, add, or drop furniture.
+- Respect real-world scale for the given dimensions — a person must fit through the doors.
 - Furniture with a reference photo must match that exact product: same shape, color,
   material. Do not substitute different designs.
 - Walls, openings and windows exactly as in the plan; daylight comes through the windows.
@@ -81,6 +87,9 @@ Image 1 is the furnished floor plan: room names, dimensions, and every piece of 
 drawn to scale at its exact position. Reproduce the same room adjacencies, wall positions,
 door/window openings, and furniture arrangement faithfully, keeping the plan's proportions.
 
+LAYOUT — ground truth; match it exactly (trust this text over any misread of the schematic):
+{layout}
+
 Style: {style}.
 Warm, appealing architectural-visualization look, soft daylight, subtle shadows.
 No people, no text overlays, no watermark.
@@ -109,9 +118,12 @@ def generate_apartment_image(llm, catalog, project, feedback: str = "", force: b
     if out_path.exists() and not force:
         return out_path
 
+    from furnisher.render3d.describe import describe_apartment_layout
+
     style = project.meta.get("style_profile")
     style_profile = StyleProfile.model_validate(style) if style else None
     prompt = APARTMENT_PROMPT.format(
+        layout=describe_apartment_layout(project.plan, project.placements, catalog),
         style=_style_text(style_profile),
         feedback=f"- User feedback on the previous attempt: {feedback}" if feedback else "",
     )
@@ -180,6 +192,11 @@ def generate_room_image(
         if photo_lines
         else "No product photos attached; render furniture matching the legend descriptions."
     )
+    from furnisher.render3d.describe import describe_room_layout, room_camera
+
+    layout = describe_room_layout(
+        project.plan, room_id, placements, catalog, camera=room_camera(project.plan, room_id)
+    )
     prompt = PROMPT_TEMPLATE.format(
         photo_note=photo_note,
         room_type=room.type.value.replace("_", " "),
@@ -187,6 +204,7 @@ def generate_room_image(
         depth=max(ys) - min(ys),
         ceiling=room.ceiling_height or project.plan.ceiling_height,
         legend="\n".join(legend),
+        layout=layout,
         style=_style_text(style_profile),
         camera=camera,
         feedback=f"- User feedback on the previous attempt: {feedback}" if feedback else "",

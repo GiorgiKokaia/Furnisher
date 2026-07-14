@@ -85,6 +85,12 @@ def test_choose_places_items(client):
     assert body["placed"][0]["name"] == "Rest Double Bed 160"
     assert body["state"]["spent"] > 0
     assert "Rest Double Bed 160" in body["state"]["shopping_list"]
+    # placements carry product detail for the piece popup (image/dims/price/url)
+    bed = next(p for p in body["state"]["placements"] if p["id"] == "bed")
+    assert bed["item"] == "Rest Double Bed 160"
+    assert "cm" in bed["dims"]
+    for field in ("image", "url", "price", "currency", "type"):
+        assert field in bed
 
 
 def test_undo(client):

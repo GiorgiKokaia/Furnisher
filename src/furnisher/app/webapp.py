@@ -63,6 +63,9 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
     renders_dir = orch.project.path / "renders"
     renders_dir.mkdir(exist_ok=True)
     app.mount("/renders", StaticFiles(directory=renders_dir), name="renders")
+    inspiration_dir = orch.project.path / "inspiration"
+    inspiration_dir.mkdir(exist_ok=True)
+    app.mount("/inspiration", StaticFiles(directory=inspiration_dir), name="inspiration")
 
     def state() -> dict:
         project = orch.project
@@ -91,6 +94,13 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
                     "id": p.id,
                     "room": p.room,
                     "item": catalog.get(p.item_ref).name,
+                    "type": catalog.get(p.item_ref).type_name,
+                    "price": catalog.get(p.item_ref).price,
+                    "currency": catalog.get(p.item_ref).currency,
+                    "dims": f"{catalog.get(p.item_ref).width_m * 100:.0f}×"
+                    f"{catalog.get(p.item_ref).depth_m * 100:.0f} cm",
+                    "image": (catalog.get(p.item_ref).image_urls or [None])[0],
+                    "url": catalog.get(p.item_ref).url,
                     "position": list(p.position),
                     "rotation": p.rotation,
                 }
@@ -195,9 +205,11 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
         query = (body.get("query") or "").strip()
         if not query:
             return JSONResponse({"error": "empty query"}, status_code=400)
+        orch.last_inspiration = []
         reply = orch.inspire_from_ikea(query, body.get("notes", ""))
         orch.project.append_chat("assistant", reply)
-        return {"reply": reply, "state": state()}
+        images = [f"/inspiration/{name}" for name in orch.last_inspiration]
+        return {"reply": reply, "images": images, "state": state()}
 
     @app.post("/api/apartment-image")
     def apartment_image(body: dict):
