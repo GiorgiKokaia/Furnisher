@@ -7,7 +7,9 @@
   Type codes are language-independent: 00047 width, 00044 depth, 00041 height
   (00413 backrest / 00138 armrest height as fallback for sofas that list no overall height).
 
-One PIP fetch per item (cached forever via the facade), polite ≥1s between requests.
+One PIP fetch per item (cached forever via the facade). Search endpoints are throttled
+≥1s apart; the per-item PIP fetches within one search go out concurrently (bounded pool)
+rather than serially, so a search costs one round-trip's latency, not one per candidate.
 This is a baseline integration — expect breakage; all endpoint knowledge stays in this file.
 """
 
@@ -17,6 +19,7 @@ import json
 import logging
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 
@@ -26,6 +29,7 @@ log = logging.getLogger(__name__)
 
 SEARCH_URL = "https://sik.search.blue.cdtapps.com/{cc}/{lc}/search-result-page"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) furnisher-prototype"
+PIP_CONCURRENCY = 6  # max PIP pages in flight at once — polite ceiling that replaces the 1s gap
 
 WIDTH_TYPE = "00047"
 DEPTH_TYPE = "00044"
@@ -136,7 +140,8 @@ class IkeaProvider:
         return parse_search_products(resp.json())
 
     def _fetch_dims(self, pip_url: str) -> dict[str, float]:
-        self._throttle()
+        # No _throttle() here: these run concurrently under PIP_CONCURRENCY (see search()),
+        # and httpx.Client is safe to share across threads. The bounded pool is the rate limit.
         resp = self.client.get(pip_url)
         resp.raise_for_status()
         return parse_measurements(resp.text)
@@ -181,12 +186,13 @@ class IkeaProvider:
                 for p in products
                 if (p.get("salesPrice") or {}).get("numeral", 0) <= filters.price_max
             ]
-        items = []
-        for product in products[:limit]:
-            item = self._to_item(product)
-            if item is not None:
-                items.append(item)
-        return items
+        candidates = products[:limit]
+        if not candidates:
+            return []
+        # Fetch all PIP pages at once instead of one-at-a-time — order preserved by map().
+        with ThreadPoolExecutor(max_workers=min(PIP_CONCURRENCY, len(candidates))) as pool:
+            items = pool.map(self._to_item, candidates)
+        return [item for item in items if item is not None]
 
     def inspiration_images(self, query: str, limit: int = 4) -> list[dict]:
         """Styled lifestyle room photos: the contextualImageUrl on product search hits.

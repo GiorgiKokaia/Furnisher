@@ -4,6 +4,7 @@ Owns the order things run in; contains no domain logic of its own.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from furnisher.agent import DesignAgent, StyleProfile
@@ -116,16 +117,22 @@ class Orchestrator:
             return f"no inspiration photos found for {query!r}"
         dest = self.project.path / "inspiration"
         dest.mkdir(exist_ok=True)
-        saved: list[Path] = []
         slug = "".join(c if c.isalnum() else "-" for c in query.lower()).strip("-")
-        for n, photo in enumerate(photos):
+
+        def grab(indexed_photo: tuple[int, dict]) -> Path | None:
+            n, photo = indexed_photo
             try:
                 data = self._download_image(photo["url"])
             except Exception:
-                continue
+                return None
             path = dest / f"ikea-{slug}-{n}.jpg"
             path.write_bytes(data)
-            saved.append(path)
+            return path
+
+        # Download all inspiration photos at once rather than sequentially.
+        with ThreadPoolExecutor(max_workers=len(photos)) as pool:
+            results = pool.map(grab, enumerate(photos))
+        saved: list[Path] = [p for p in results if p is not None]
         if not saved:
             return "could not download any inspiration photos"
         self.last_inspiration = [p.name for p in saved]

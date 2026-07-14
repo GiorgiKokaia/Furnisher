@@ -6,6 +6,7 @@ Adapters stay dumb; anything a provider can't filter natively gets filtered here
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from furnisher.catalog.cache import CatalogCache
@@ -75,17 +76,23 @@ class Catalog:
 
         directory = self.cache.image_dir(item_id)
         directory.mkdir(parents=True, exist_ok=True)
-        paths: list[Path] = []
+        urls = list(enumerate(item.image_urls[:max_images]))
+
+        def fetch(indexed_url: tuple[int, str]) -> Path | None:
+            n, url = indexed_url
+            try:
+                resp = client.get(url)
+                resp.raise_for_status()
+            except httpx.HTTPError as exc:
+                log.warning("image download failed for %s: %s", item_id, exc)
+                return None
+            suffix = ".jpg" if ".jpg" in url.lower() else ".png"
+            path = directory / f"{n}{suffix}"
+            path.write_bytes(resp.content)
+            return path
+
+        # Grab an item's images concurrently rather than one after another.
         with httpx.Client(timeout=20, follow_redirects=True) as client:
-            for n, url in enumerate(item.image_urls[:max_images]):
-                try:
-                    resp = client.get(url)
-                    resp.raise_for_status()
-                except httpx.HTTPError as exc:
-                    log.warning("image download failed for %s: %s", item_id, exc)
-                    continue
-                suffix = ".jpg" if ".jpg" in url.lower() else ".png"
-                path = directory / f"{n}{suffix}"
-                path.write_bytes(resp.content)
-                paths.append(path)
-        return paths
+            with ThreadPoolExecutor(max_workers=len(urls)) as pool:
+                results = pool.map(fetch, urls)
+        return [p for p in results if p is not None]

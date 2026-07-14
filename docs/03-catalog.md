@@ -77,7 +77,9 @@ Spike findings (all endpoint knowledge lives in `catalog/adapters/ikea.py`):
   with no overall height (e.g. GLOSTAD sofa). Beware the *package* measurements blobs on the
   same page (label/value shape, flat-pack box dims) — the parser only reads typed entries.
 - **Cost model:** one PIP fetch per item for dims → search keeps candidates ≤ limit, pre-filters
-  on price from search data, throttles ≥1s/request. Cached forever after first fetch.
+  on price from search data. The per-item PIP fetches within one search go out concurrently
+  (bounded pool, `PIP_CONCURRENCY`); the search endpoint itself is throttled ≥1s/request.
+  Cached forever after first fetch. Images for an item download concurrently too.
 - Recorded fixtures: `tests/fixtures/ikea/` (trimmed real search JSON + measurement blobs).
 
 ### `generic` (build alongside, it's ~free)
