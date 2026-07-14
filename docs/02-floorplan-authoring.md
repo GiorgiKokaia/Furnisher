@@ -36,6 +36,12 @@ serving a single-file vanilla-JS canvas editor (`authoring/editor.html`, no buil
 file stays the source of truth; the editor is a view. All validation/serialization stays in
 Python.
 
+The editor reads which file to edit from a swappable `EditorTarget`, so the launcher (docs/08)
+can mount this same app and point it at any layout in the workspace. Under the launcher the
+editor gains a "Furnish →" button (save + jump into furnish mode) and a "Layouts" link home;
+these appear only when a `sample_id` is present (i.e. hub-driven), so standalone `plan edit`
+is unchanged. Fetch URLs are relative so the page works at `/` and mounted at `/editor/`.
+
 What it does:
 - Draw rooms by dragging; move rooms; reshape via corner handles. Grid cell size (5 cm – 1 m)
   and snap on/off are toolbar controls, persisted in localStorage; the canvas draws the chosen

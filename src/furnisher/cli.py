@@ -167,6 +167,36 @@ def project_new(
     typer.echo(f"created project at {directory}")
 
 
+@app.command("start")
+def start(
+    workspace: Path = typer.Option(
+        Path("workspace"), "--workspace", "-w", help="Workspace directory (layouts + projects)."
+    ),
+    port: int = typer.Option(8380, "--port", "-p"),
+    no_browser: bool = typer.Option(False, "--no-browser"),
+) -> None:
+    """The launcher (single entry point): pick or create a layout, then furnish it."""
+    import threading
+    import webbrowser
+
+    import uvicorn
+
+    from furnisher.hub import Workspace, create_hub
+    from furnisher.llm import GeminiLLM, LLMError
+
+    try:
+        llm = GeminiLLM()
+    except LLMError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    hub = create_hub(Workspace(workspace), llm)
+    url = f"http://127.0.0.1:{port}"
+    if not no_browser:
+        threading.Timer(0.8, webbrowser.open, args=(url,)).start()
+    typer.echo(f"Furnisher at {url} (workspace: {workspace}) — Ctrl+C to stop")
+    uvicorn.run(hub, host="127.0.0.1", port=port, log_level="warning")
+
+
 @app.command("app")
 def web_app(
     project_dir: Path = typer.Argument(..., exists=True, file_okay=False),

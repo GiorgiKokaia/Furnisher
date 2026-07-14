@@ -66,7 +66,9 @@ Stretch goal: 2D→3D.
 - **07 Room image generation** — Nano Banana (`gemini-2.5-flash-image`) renders each room, with the
   plan render + product photos passed as grounding inputs.
 - **08 Chat app / orchestration** — the loop the user actually experiences; session state, applying
-  agent proposals, triggering renders.
+  agent proposals, triggering renders. Fronted by a **launcher** (`furnisher start`, `hub/`): one
+  URL where the user picks a layout from a workspace library (or draws a new one) and continues
+  into furnish mode. New layouts become future samples; one furnish project per layout.
 - **09 Persistence** — one project = one directory of JSON + assets; versioned snapshots so the
   user can iterate safely.
 - **10 3D stretch** — parked notes so early decisions don't block it.

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Furnisher — layouts</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; color: #333; background: #f5f3f0;
+         min-height: 100vh; }
+  header { display: flex; align-items: center; gap: 14px; padding: 14px 22px;
+           background: linear-gradient(90deg, #2f2a26, #4a4038); color: #eee; }
+  header .brand { font-weight: 700; letter-spacing: 0.5px; font-size: 17px; }
+  header .sub { color: #cbb994; font-size: 13px; }
+  header .spacer { flex: 1; }
+  header button { font: inherit; font-weight: 600; padding: 9px 16px; border: 0; border-radius: 8px;
+                  background: #3f7a4a; color: #fff; cursor: pointer; }
+  header button:hover { background: #4a8c57; }
+  main { max-width: 1100px; margin: 0 auto; padding: 26px 22px; }
+  h2 { font-size: 15px; font-weight: 600; color: #6b6259; margin-bottom: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 18px; }
+  .card { background: #fff; border: 1px solid #e4e0da; border-radius: 12px; overflow: hidden;
+          display: flex; flex-direction: column; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .thumb { height: 150px; background: #faf8f5; display: flex; align-items: center;
+           justify-content: center; border-bottom: 1px solid #eee; padding: 8px; overflow: hidden; }
+  .thumb svg { max-width: 100%; max-height: 100%; }
+  .thumb.err { color: #a08; font-size: 12px; color: #8a3b34; padding: 12px; text-align: center; }
+  .body { padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+  .body .name { font-weight: 600; font-size: 15px; }
+  .body .meta { color: #8a8178; font-size: 12px; }
+  .body .badge { align-self: flex-start; margin-top: 2px; font-size: 11px; color: #3f7a4a;
+                 background: #eaf3ec; border-radius: 999px; padding: 1px 9px; }
+  .actions { display: flex; gap: 8px; padding: 0 14px 14px; }
+  .actions a { flex: 1; text-align: center; text-decoration: none; font: inherit; font-size: 13px;
+               padding: 8px 0; border-radius: 8px; cursor: pointer; }
+  .actions .furnish { background: #4a7fa5; color: #fff; font-weight: 600; }
+  .actions .furnish:hover { background: #5a90b6; }
+  .actions .edit { background: #efece7; color: #4a4038; border: 1px solid #e0dcd4; }
+  .actions .edit:hover { background: #e6e1da; }
+  .empty { color: #999; padding: 30px 0; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">Furnisher</span>
+  <span class="sub">pick a layout to furnish, or draw a new one</span>
+  <span class="spacer"></span>
+  <button id="newBtn">+ New layout</button>
+</header>
+<main>
+  <h2>Your layouts</h2>
+  <div class="grid" id="grid"><div class="empty">loading…</div></div>
+</main>
+<script>
+"use strict";
+const grid = document.getElementById("grid");
+
+function card(s) {
+  const el = document.createElement("div");
+  el.className = "card";
+  const thumb = document.createElement("div");
+  if (s.error) { thumb.className = "thumb err"; thumb.textContent = "⚠ " + s.error; }
+  else { thumb.className = "thumb"; thumb.innerHTML = s.svg || ""; }
+  const body = document.createElement("div");
+  body.className = "body";
+  const name = document.createElement("div");
+  name.className = "name"; name.textContent = s.name;
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.textContent = `${s.rooms} room${s.rooms === 1 ? "" : "s"} · ${s.area} m²`;
+  body.append(name, meta);
+  if (s.has_project) {
+    const badge = document.createElement("div");
+    badge.className = "badge"; badge.textContent = "furnishing in progress";
+    body.append(badge);
+  }
+  const actions = document.createElement("div");
+  actions.className = "actions";
+  const furnish = document.createElement("a");
+  furnish.className = "furnish";
+  furnish.href = "/hub/furnish/" + encodeURIComponent(s.id);
+  furnish.textContent = s.has_project ? "Continue →" : "Furnish →";
+  const edit = document.createElement("a");
+  edit.className = "edit";
+  edit.href = "/hub/edit/" + encodeURIComponent(s.id);
+  edit.textContent = "Edit layout";
+  actions.append(furnish, edit);
+  el.append(thumb, body, actions);
+  return el;
+}
+
+async function load() {
+  const resp = await fetch("hub/samples");
+  const { samples } = await resp.json();
+  grid.innerHTML = "";
+  if (!samples.length) {
+    grid.innerHTML = '<div class="empty">No layouts yet — click “New layout” to draw one.</div>';
+    return;
+  }
+  samples.forEach(s => grid.append(card(s)));
+}
+
+document.getElementById("newBtn").addEventListener("click", async () => {
+  const name = prompt("Name this layout:", "My apartment");
+  if (name === null) return;
+  const resp = await fetch("hub/new", {method: "POST",
+    headers: {"Content-Type": "application/json"}, body: JSON.stringify({name})});
+  const body = await resp.json();
+  window.location.href = body.editor_url;
+});
+
+load();
+</script>
+</body>
+</html>

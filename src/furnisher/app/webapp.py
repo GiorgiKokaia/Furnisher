@@ -2,6 +2,11 @@
 
 Thin layer over the same Orchestrator the CLI REPL uses — if this file needs new core
 logic, that logic is in the wrong place.
+
+The app is driven by a swappable `FurnishSession` (which project is open), so the same
+instance can be mounted inside the hub launcher (docs/08 unified entry) and have the hub
+switch projects under it. `create_app(project_dir)` keeps the standalone `furnisher app`
+path working by opening a session on one project up front.
 """
 
 from __future__ import annotations
@@ -12,8 +17,13 @@ import threading
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    StreamingResponse,
+)
 from shapely.geometry import LineString
 
 from furnisher.app.orchestrator import Orchestrator
@@ -24,6 +34,7 @@ from furnisher.project import Project
 from furnisher.render2d import RenderStyle, render_plan
 
 WALL_SNAP_M = 0.3  # dragged items this close to a wall get pulled flush (0.05 gap)
+APP_HTML = Path(__file__).parent / "app.html"
 
 
 def snap_to_wall(plan, placement, item) -> None:
@@ -48,29 +59,49 @@ def snap_to_wall(plan, placement, item) -> None:
         )
 
 
-APP_HTML = Path(__file__).parent / "app.html"
+class FurnishSession:
+    """Which project the furnish app is currently serving. The hub swaps this to switch
+    layouts; catalog and LLM are shared across projects (expensive, project-agnostic)."""
+
+    def __init__(self, catalog, llm):
+        self.catalog = catalog
+        self.llm = llm
+        self.orch: Orchestrator | None = None
+
+    def open(self, project_dir: Path) -> Orchestrator:
+        self.orch = Orchestrator(Project.load(project_dir), self.catalog, self.llm)
+        return self.orch
 
 
 def create_app(project_dir: Path, llm=None) -> FastAPI:
+    """Standalone furnish app for one project (`furnisher app <project>`)."""
     if llm is None:
         from furnisher.llm import GeminiLLM
 
         llm = GeminiLLM()
-    catalog = default_catalog()
-    orch = Orchestrator(Project.load(project_dir), catalog, llm)
+    session = FurnishSession(default_catalog(), llm)
+    session.open(project_dir)
+    return create_furnish_app(session)
 
+
+def _safe_under(base: Path, rel: str) -> Path | None:
+    """Resolve `rel` under `base`, refusing to escape it (path-traversal guard)."""
+    target = (base / rel).resolve()
+    if base.resolve() not in target.parents and target != base.resolve():
+        return None
+    return target
+
+
+def create_furnish_app(session: FurnishSession) -> FastAPI:
+    """The furnish app, reading the current project from `session` on every request."""
+    catalog = session.catalog
     app = FastAPI(title="Furnisher")
-    renders_dir = orch.project.path / "renders"
-    renders_dir.mkdir(exist_ok=True)
-    app.mount("/renders", StaticFiles(directory=renders_dir), name="renders")
-    inspiration_dir = orch.project.path / "inspiration"
-    inspiration_dir.mkdir(exist_ok=True)
-    app.mount("/inspiration", StaticFiles(directory=inspiration_dir), name="inspiration")
 
     def state() -> dict:
+        orch = session.orch
         project = orch.project
         issues = validate(project.plan, project.placements, catalog)
-        rooms_dir = renders_dir / "rooms"
+        rooms_dir = project.path / "renders" / "rooms"
         images = (
             sorted(
                 (p.name for p in rooms_dir.glob("*.png")),
@@ -114,8 +145,27 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
         }
 
     @app.get("/", response_class=HTMLResponse)
-    def index() -> str:
-        return APP_HTML.read_text(encoding="utf-8")
+    def index():
+        if session.orch is None:  # opened directly without picking a layout — send home
+            return RedirectResponse("/", status_code=307)
+        return HTMLResponse(APP_HTML.read_text(encoding="utf-8"))
+
+    # renders/ and inspiration/ are served from the *current* project (no fixed static mount,
+    # so switching projects just works). URLs are relative in app.html, so these resolve both
+    # standalone (at /) and when the hub mounts this app under /furnish.
+    @app.get("/renders/{path:path}")
+    def renders(path: str):
+        target = _safe_under(session.orch.project.path / "renders", path)
+        if target is None or not target.is_file():
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return FileResponse(target)
+
+    @app.get("/inspiration/{path:path}")
+    def inspiration(path: str):
+        target = _safe_under(session.orch.project.path / "inspiration", path)
+        if target is None or not target.is_file():
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return FileResponse(target)
 
     @app.get("/api/state")
     def get_state():
@@ -124,6 +174,7 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
     @app.post("/api/message")
     def message(body: dict):
         """NDJSON stream: {"progress": ...} lines while the agent works, then the result."""
+        orch = session.orch
         text = (body.get("text") or "").strip()
         if not text:
             return JSONResponse({"error": "empty message"}, status_code=400)
@@ -155,11 +206,12 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
 
     @app.post("/api/choose")
     def choose(body: dict):
-        result = orch.handle_message(str(int(body.get("index", -1)) + 1))
+        result = session.orch.handle_message(str(int(body.get("index", -1)) + 1))
         return {**result, "state": state()}
 
     @app.post("/api/undo")
     def undo():
+        orch = session.orch
         ok = orch.project.undo()
         orch.render_svg()
         return {"ok": ok, "state": state()}
@@ -167,6 +219,7 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
     @app.post("/api/placement")
     def placement_edit(body: dict):
         """Move/rotate/delete one placed item, validated live (docs/08 click-to-adjust)."""
+        orch = session.orch
         pid = body.get("id")
         action = body.get("action")
         project = orch.project
@@ -202,40 +255,43 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
 
     @app.post("/api/inspire-ikea")
     def inspire_ikea(body: dict):
+        orch = session.orch
         query = (body.get("query") or "").strip()
         if not query:
             return JSONResponse({"error": "empty query"}, status_code=400)
         orch.last_inspiration = []
         reply = orch.inspire_from_ikea(query, body.get("notes", ""))
         orch.project.append_chat("assistant", reply)
-        images = [f"/inspiration/{name}" for name in orch.last_inspiration]
+        images = [f"inspiration/{name}" for name in orch.last_inspiration]
         return {"reply": reply, "images": images, "state": state()}
 
     @app.post("/api/apartment-image")
     def apartment_image(body: dict):
         from furnisher.render3d import generate_apartment_image
 
+        orch = session.orch
         if not orch.project.placements:
             return JSONResponse(
                 {"error": "nothing placed yet — furnish a room first"}, status_code=400
             )
         out = generate_apartment_image(
-            llm,
+            session.llm,
             catalog,
             orch.project,
             feedback=body.get("feedback", ""),
             force=bool(body.get("force")),
         )
-        return {"image": f"/renders/rooms/{out.name}", "state": state()}
+        return {"image": f"renders/rooms/{out.name}", "state": state()}
 
     @app.post("/api/room-image")
     def room_image(body: dict):
         from furnisher.render3d import generate_room_image
 
+        orch = session.orch
         room_id = body.get("room")
         try:
             out = generate_room_image(
-                llm,
+                session.llm,
                 catalog,
                 orch.project,
                 room_id,
@@ -244,6 +300,6 @@ def create_app(project_dir: Path, llm=None) -> FastAPI:
             )
         except (ValueError, KeyError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        return {"image": f"/renders/rooms/{out.name}", "state": state()}
+        return {"image": f"renders/rooms/{out.name}", "state": state()}
 
     return app

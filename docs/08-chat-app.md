@@ -1,8 +1,9 @@
 # 08 — Chat App / Orchestration
 
-**Status:** stage 1 + stage 2 built — `furnisher chat` REPL and `furnisher app` web UI
-(`app/webapp.py` + `app/app.html`): furnished plan + chat side by side, room-photo gallery,
-per-room camera buttons, undo, budget header. Web app v2 additions:
+**Status:** stage 1 + stage 2 built, plus a unified launcher (`furnisher start`) that ties the
+layout editor and the furnish app together behind one URL. `furnisher chat` REPL and
+`furnisher app` web UI (`app/webapp.py` + `app/app.html`): furnished plan + chat side by side,
+room-photo gallery, per-room camera buttons, undo, budget header. Web app v2 additions:
 - **Streaming**: `/api/message` returns NDJSON — `{"progress": ...}` lines (intent routing,
   each catalog search, placement) update the pending bubble live, last line carries the result.
 - **Options**: furnishing is two-step — the agent proposes 2-3 labeled options (RoomOptions),
@@ -23,7 +24,33 @@ per-room camera buttons, undo, budget header. Web app v2 additions:
   selecting a placed piece renders its product photo in the floating toolbar (click to enlarge),
   so you can see *what* you're nudging, not just its id.
 **Depends on:** all of 01–07 (this is the integration layer)
-**Code home:** `src/furnisher/app/`
+**Code home:** `src/furnisher/app/`, `src/furnisher/hub/` (launcher)
+
+## Single entry point — the launcher (`furnisher start`)
+
+One command, one URL (`src/furnisher/hub/`). The home page (`hub/home.html`) lists the user's
+**layout library** with thumbnails and offers *New layout*; picking one either opens the editor
+or jumps straight into furnish mode. This is the front door the user actually starts from.
+
+- **Workspace** (`hub/workspace.py`): a directory with `samples/<id>.yaml` (the layout library —
+  every saved layout lands here and becomes a future sample) and `projects/<id>/` (one furnish
+  session per layout, so re-selecting continues where you left off). Seeded on first run from
+  starter layouts bundled in `hub/samples/`. Default root `./workspace/` (gitignored).
+- **Hub server** (`hub/hub.py`): serves the home page and `/hub/*` actions, and **mounts the
+  editor and furnish apps** under `/editor` and `/furnish`. It doesn't duplicate them — it swaps
+  which layout/project they point at via `EditorTarget` (authoring) and `FurnishSession` (app),
+  both of which are swappable holders the two apps read on every request.
+  - `POST /hub/new` reserves a unique id + opens the editor on a blank, named layout.
+  - `GET /hub/edit/{id}` points the editor at an existing layout, redirects to `/editor/`.
+  - `GET /hub/furnish/{id}` create-or-continues the layout's project, opens the session,
+    redirects to `/furnish/`. The editor's "Furnish →" button saves then hits this.
+- **Relative URLs**: `app.html`/`editor.html` fetch `api/…` (not `/api/…`) and images resolve
+  relative to the page, so both apps work identically standalone (`furnisher app`, at `/`) and
+  mounted under the hub (at `/furnish/`). Renders/inspiration are served from the *current*
+  project via explicit routes, not a fixed static mount (so switching projects just works).
+
+Standalone commands still exist (`furnisher app <project>`, `furnisher plan edit <file>`) — the
+hub is a convenience layer over the same factories, not a replacement.
 
 ## Purpose
 
@@ -77,6 +104,9 @@ want a smaller one?") — `LayoutIssue` messages are written for exactly this.
       option picking
 - [x] Scripted end-to-end tests: fixture plan + FakeLLM → options → choose → furnished project
 - [x] (M5) FastAPI app + page (v2: streaming, option cards, drag+snap, apartment view)
+- [x] Unified launcher (`furnisher start`, `hub/`): workspace of layout samples + per-layout
+      furnish projects, home page with thumbnails, editor/furnish mounted under one server
+      with swappable target/session; new layouts auto-become samples
 - [ ] Staleness tracking: room-image caching self-invalidates via content hash, but outdated
       images linger in the gallery — mark or prune them
 

@@ -69,7 +69,7 @@
 </head>
 <body>
 <header>
-  <span class="brand">Furnisher</span>
+  <a class="brand" href="/" title="Back to layouts" style="text-decoration:none;color:inherit">☰ Furnisher</a>
   <button class="tool active" data-tool="select" title="Select / move / drag (S)">Select</button>
   <button class="tool" data-tool="room" title="Drag to draw a room (R)">+ Room</button>
   <button class="tool" data-tool="door" title="Click a wall to place a door (D)">+ Door</button>
@@ -92,6 +92,8 @@
   <button id="previewBtn" title="Server-rendered SVG with door arcs">Preview</button>
   <button id="validateBtn">Validate</button>
   <button id="saveBtn" class="primary" title="Ctrl+S">Save</button>
+  <button id="furnishBtn" class="primary" title="Save and start furnishing this layout"
+          style="display:none;background:#3f7a4a">Furnish →</button>
 </header>
 <main>
   <canvas id="canvas"></canvas>
@@ -123,6 +125,7 @@ const sidebar = document.getElementById("sidebar");
 
 let plan = null;                 // schema JSON: {name, ceiling_height, rooms, openings}
 let planPath = "";
+let sampleId = null;  // set by the hub; enables the "Furnish →" button
 let view = {scale: 80, ox: 60, oy: 500};
 let tool = "select";
 let sel = null;                  // {kind:"room"|"opening", i}
@@ -762,7 +765,7 @@ function updateFooter() {
 }
 
 async function save() {
-  const resp = await fetch("/api/plan", {method: "POST",
+  const resp = await fetch("api/plan", {method: "POST",
     headers: {"Content-Type": "application/json"}, body: JSON.stringify(plan)});
   const body = await resp.json();
   if (body.saved) {
@@ -780,14 +783,14 @@ async function save() {
 }
 
 async function validate() {
-  const resp = await fetch("/api/validate", {method: "POST",
+  const resp = await fetch("api/validate", {method: "POST",
     headers: {"Content-Type": "application/json"}, body: JSON.stringify(plan)});
   const body = await resp.json();
   showIssues(body.issues);
 }
 
 async function preview() {
-  const resp = await fetch("/api/render", {method: "POST",
+  const resp = await fetch("api/render", {method: "POST",
     headers: {"Content-Type": "application/json"}, body: JSON.stringify(plan)});
   const text = await resp.text();
   const overlay = document.createElement("div");
@@ -817,6 +820,10 @@ snapChk.addEventListener("change", () => {
 });
 
 document.getElementById("saveBtn").addEventListener("click", save);
+document.getElementById("furnishBtn").addEventListener("click", async () => {
+  await save();
+  if (!dirty && sampleId) window.location.href = "/hub/furnish/" + sampleId;
+});
 document.getElementById("validateBtn").addEventListener("click", validate);
 document.getElementById("previewBtn").addEventListener("click", preview);
 document.getElementById("fitBtn").addEventListener("click", fitView);
@@ -825,12 +832,14 @@ new ResizeObserver(resize).observe(canvas);
 window.addEventListener("beforeunload", e => { if (dirty) e.preventDefault(); });
 
 (async function init() {
-  const resp = await fetch("/api/plan");
+  const resp = await fetch("api/plan");
   const body = await resp.json();
   if (body.error) { alert(body.error); return; }
   plan = body.plan;
   plan.openings = plan.openings || [];
   planPath = body.path;
+  sampleId = body.sample_id || null;
+  if (sampleId) document.getElementById("furnishBtn").style.display = "";
   document.title = "Furnisher — " + planPath;
   renderSidebar();
   resize();

@@ -34,23 +34,28 @@ task checklist so work can be resumed (by a human or an agent) without extra con
 ## Status
 
 **M0–M5 done** — schema, GUI plan editor, provider-agnostic catalog (generic + live IKEA
-adapters), layout validation + auto-placement, furnished rendering, chat design agent. Try it:
+adapters), layout validation + auto-placement, furnished rendering, chat design agent. One
+command runs everything:
 
 ```
 uv sync
-uv run furnisher plan edit my-apartment.yaml              # browser GUI layout editor
+uv run furnisher start        # the launcher — pick or draw a layout, then furnish it
+```
+
+`furnisher start` opens a **home page**: pick a layout from your library (seeded with a few
+starters + your `my-apartment.yaml`) or click *New layout* to draw one. Picking one jumps
+straight into furnish mode; every layout you save becomes a sample for next time. Layouts and
+furnish sessions live under `./workspace/` (gitignored). One furnish project per layout, so
+re-opening a layout continues where you left off.
+
+The individual pieces are still addressable directly:
+
+```
+uv run furnisher plan edit my-apartment.yaml              # just the layout editor
+uv run furnisher app my-place                             # just the furnish app on a project
+uv run furnisher chat my-place                            # same brain, terminal REPL
 uv run furnisher catalog search "sofa" --max-price 400    # search real furniture (cached)
-uv run furnisher furnish validate my-apartment.yaml examples/my-apartment.placements.json
-uv run furnisher furnish render   my-apartment.yaml examples/my-apartment.placements.json
-```
-
-The design agent and the web app are the main event:
-
-```
-uv run furnisher project new my-place --plan my-apartment.yaml
-uv run furnisher app my-place                 # plan + chat side by side (start here)
-uv run furnisher chat my-place                # same brain, terminal REPL
-uv run furnisher render room my-place Sleep   # grounded photoreal room image (Nano Banana)
+uv run furnisher render room my-place Sleep               # grounded photoreal room image
 ```
 
 In the app: set a budget, pull IKEA inspiration photos (✨ — the actual lifestyle shots

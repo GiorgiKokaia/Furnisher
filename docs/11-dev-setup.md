@@ -20,11 +20,13 @@ src/furnisher/
   layout/       # 05
   render2d/     # 06
   render3d/     # 07 (2.5D for now)
-  app/          # 08 orchestration + CLI + (later) FastAPI
+  app/          # 08 orchestration + furnish FastAPI app
+  hub/          # 08 launcher: workspace + home page, mounts editor + furnish (+ samples/)
   project/      # 09 persistence
-  cli.py        # `furnisher` entry point (typer)
+  cli.py        # `furnisher` entry point (typer); `furnisher start` = the launcher
 tests/
   fixtures/     # plans, recorded API responses, golden SVGs
+workspace/      # gitignored: user's layout library (samples/) + furnish projects/
 experiments/    # gitignored scratch (esp. room-render iterations, 07)
 ```
 
