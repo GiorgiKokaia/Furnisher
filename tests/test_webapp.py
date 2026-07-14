@@ -115,6 +115,12 @@ def test_index(client):
     assert "Furnisher" in client.get("/").text
 
 
+def test_item_image_proxy_404_without_image(client):
+    # generic catalog items have no image_urls -> proxy reports no image (browser falls back)
+    assert client.get("/api/item-image", params={"id": "generic:rest-double-bed-160"}).status_code == 404
+    assert client.get("/api/item-image", params={"id": "nope:nothing"}).status_code == 404
+
+
 def test_placement_move_and_delete(client):
     _furnish(client)
     state = client.get("/api/state").json()

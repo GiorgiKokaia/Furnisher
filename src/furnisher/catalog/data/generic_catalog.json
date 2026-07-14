@@ -18,6 +18,8 @@
     {"name": "Focus Task Chair", "type_name": "office chair", "width_m": 0.68, "depth_m": 0.68, "height_m": 1.10, "price": 119, "currency": "EUR", "tags": "office chair desk work"},
     {"name": "Step Shoe Cabinet", "type_name": "shoe cabinet", "width_m": 0.80, "depth_m": 0.24, "height_m": 1.20, "price": 89, "currency": "EUR", "tags": "shoe cabinet hallway entry storage"},
     {"name": "Tall Bath Cabinet", "type_name": "high cabinet", "width_m": 0.60, "depth_m": 0.32, "height_m": 1.80, "price": 99, "currency": "EUR", "tags": "bathroom cabinet storage tall"},
-    {"name": "Glow Floor Lamp", "type_name": "floor lamp", "width_m": 0.38, "depth_m": 0.38, "height_m": 1.50, "price": 59, "currency": "EUR", "tags": "floor lamp light living room bedroom"}
+    {"name": "Glow Floor Lamp", "type_name": "floor lamp", "width_m": 0.38, "depth_m": 0.38, "height_m": 1.50, "price": 59, "currency": "EUR", "tags": "floor lamp light living room bedroom"},
+    {"name": "Weave Rug L", "type_name": "rug", "width_m": 2.00, "depth_m": 3.00, "height_m": 0.02, "price": 99, "currency": "EUR", "tags": "rug carpet floor living room bedroom"},
+    {"name": "Weave Rug M", "type_name": "rug", "width_m": 1.60, "depth_m": 2.30, "height_m": 0.02, "price": 69, "currency": "EUR", "tags": "rug carpet floor living room bedroom"}
   ]
 }

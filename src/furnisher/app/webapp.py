@@ -26,7 +26,7 @@ from fastapi.responses import (
 )
 from shapely.geometry import LineString
 
-from furnisher.app.orchestrator import Orchestrator
+from furnisher.app.orchestrator import Orchestrator, image_proxy_url
 from furnisher.catalog import default_catalog
 from furnisher.layout import placement_polygon, validate
 from furnisher.model import geometry
@@ -130,7 +130,7 @@ def create_furnish_app(session: FurnishSession) -> FastAPI:
                     "currency": catalog.get(p.item_ref).currency,
                     "dims": f"{catalog.get(p.item_ref).width_m * 100:.0f}×"
                     f"{catalog.get(p.item_ref).depth_m * 100:.0f} cm",
-                    "image": (catalog.get(p.item_ref).image_urls or [None])[0],
+                    "image": image_proxy_url(catalog.get(p.item_ref)),
                     "url": catalog.get(p.item_ref).url,
                     "position": list(p.position),
                     "rotation": p.rotation,
@@ -166,6 +166,18 @@ def create_furnish_app(session: FurnishSession) -> FastAPI:
         if target is None or not target.is_file():
             return JSONResponse({"error": "not found"}, status_code=404)
         return FileResponse(target)
+
+    @app.get("/api/item-image")
+    def item_image(id: str, n: int = 0):
+        """Cache-backed product-image proxy: downloads+caches server-side (reliable), then
+        serves the local file — browsers hotlinking the IKEA CDN get intermittent failures."""
+        try:
+            paths = catalog.image_paths(id, max_images=n + 1)
+        except KeyError:
+            return JSONResponse({"error": "unknown item"}, status_code=404)
+        if len(paths) <= n:
+            return JSONResponse({"error": "no image"}, status_code=404)
+        return FileResponse(paths[n])
 
     @app.get("/api/state")
     def get_state():

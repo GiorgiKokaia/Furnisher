@@ -6,14 +6,25 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from urllib.parse import quote
 
 from furnisher.agent import DesignAgent, StyleProfile
 from furnisher.catalog import Catalog
-from furnisher.layout import PlacementRequest, auto_place, validate
-from furnisher.render2d import render_plan
+from furnisher.layout import MAX_FILL_RATIO, PlacementRequest, auto_place, validate
+from furnisher.layout.rules import is_underlay
+from furnisher.model import FloorPlan
+from furnisher.render2d import RenderStyle, render_plan
 
 # words to ignore when matching "replace the coffee table" against placed items
 _STOPWORDS = {"the", "a", "an", "my", "our", "this", "that", "with", "for", "please", "item"}
+
+
+def image_proxy_url(item) -> str | None:
+    """Relative URL to the cache-backed image proxy for an item, or None if it has no image.
+
+    Relative (no leading slash) so it resolves correctly both standalone (page at /) and when
+    the furnish app is mounted under the hub (page at /furnish/)."""
+    return f"api/item-image?id={quote(item.id, safe='')}" if item.image_urls else None
 
 
 class Orchestrator:
@@ -41,8 +52,26 @@ class Orchestrator:
             "price": item.price,
             "currency": item.currency,
             "dims": f"{item.width_m * 100:.0f}×{item.depth_m * 100:.0f} cm",
-            "image": item.image_urls[0] if item.image_urls else None,
+            # served through our own cache-backed proxy (browser hotlinks to the IKEA CDN
+            # fail intermittently); resolves relative to the page (standalone or under /furnish)
+            "image": image_proxy_url(item),
         }
+
+    def _mini_svg(self, room_id: str, placed: list) -> str:
+        """A small standalone render of one room with the proposed furniture, for chat cards."""
+        room = self.project.plan.room(room_id)
+        mini = FloorPlan(
+            name=room.label(),
+            ceiling_height=self.project.plan.ceiling_height,
+            rooms=[room],
+            openings=[op for op in self.project.plan.openings if op.room == room_id],
+        )
+        return render_plan(
+            mini,
+            placements=placed,
+            catalog=self.catalog,
+            style=RenderStyle(scale=34, padding=0.25),
+        )
 
     # --- queries ---
     def style(self) -> StyleProfile | None:
@@ -244,6 +273,83 @@ class Orchestrator:
         self._mutated()
         return f"removed {before - len(self.project.placements)} items from {room_id!r}"
 
+    def _resolve_room(self, room_id: str | None) -> str | None:
+        """Which room an add/remove targets: the stated one, else the only furnished room,
+        else the only room — otherwise None (caller asks the user)."""
+        if room_id and any(r.id == room_id for r in self.project.plan.rooms):
+            return room_id
+        furnished = {p.room for p in self.project.placements}
+        if len(furnished) == 1:
+            return next(iter(furnished))
+        if len(self.project.plan.rooms) == 1:
+            return self.project.plan.rooms[0].id
+        return None
+
+    def add_item(self, target: str, room_id: str | None, note: str = "") -> dict:
+        """Add a single grounded catalog item to a room, keeping everything already placed."""
+        room_id = self._resolve_room(room_id)
+        if room_id is None:
+            rooms = ", ".join(r.id for r in self.project.plan.rooms)
+            return {"reply": f"which room should I add that to? ({rooms})"}
+        currency = self.project.meta.get("currency", "EUR")
+        existing_names = [
+            self.catalog.get(p.item_ref).name
+            for p in self.project.placements
+            if p.room == room_id
+        ]
+        item = self.agent.propose_addition(
+            self.project.plan,
+            room_id,
+            target,
+            note,
+            self.budget_remaining(),
+            currency,
+            existing_names,
+            on_progress=self._progress,
+        )
+        if item is None:
+            return {"reply": f"couldn't find {target!r} in the catalog — try different wording"}
+        self._progress(f"placing the {item.name}…")
+        hint = "center" if is_underlay(item) else "wall"
+        placed, issues = auto_place(
+            self.project.plan,
+            room_id,
+            [PlacementRequest(item=item, purpose=item.type_name, hint=hint)],
+            self.catalog,
+            existing=self.project.placements,
+            max_fill_ratio=MAX_FILL_RATIO,
+        )
+        if not placed:
+            msg = issues[0].message if issues else "no legal spot"
+            return {"reply": f"couldn't add {item.name} to {room_id}: {msg}"}
+        self.project.snapshot()
+        self.project.placements = self.project.placements + placed
+        self._mutated()
+        lines = [
+            f"Added {item.name} ({item.type_name}, {item.price:.0f} {currency}) to {room_id} "
+            f"-> {placed[0].position}."
+        ]
+        for issue in issues:
+            lines.append(f"  ~ {issue.message}")
+        rem = self.budget_remaining()
+        if rem is not None:
+            lines.append(f"  budget remaining: {rem:.0f} {currency}")
+        return {"reply": "\n".join(lines), "placed": [self._item_payload(item.id)]}
+
+    def remove_item(self, target: str, room_id: str | None) -> dict:
+        """Remove one placed item matched by description; keep the rest of the room."""
+        placement = self._match_placement(target, room_id)
+        if placement is None:
+            return {
+                "reply": f"I couldn't tell which item you mean by {target!r}. "
+                f"Currently placed: {self._placed_items_summary(room_id)}."
+            }
+        item = self.catalog.get(placement.item_ref)
+        self.project.snapshot()
+        self.project.placements = [p for p in self.project.placements if p.id != placement.id]
+        self._mutated()
+        return {"reply": f"Removed {item.name} ({item.type_name}) from {placement.room}."}
+
     def furnish_room(self, room_id: str, note: str = "") -> dict:
         """Step 1 of furnishing: agent researches and returns options; nothing is placed
         until the user picks one (choose_option)."""
@@ -272,9 +378,33 @@ class Orchestrator:
                 "reply": "the agent came back with no placeable items — "
                 "try rephrasing or setting a budget"
             }
-        self.pending_options = {"room": room_id, "options": options}
+        # lay each option out now (deterministic) so the card can show a mini floor plan and
+        # choosing reuses the exact placement it previewed
+        self._progress("laying out the options…")
+        kept_other_rooms = [p for p in self.project.placements if p.room != room_id]
+        self.pending_options = {"room": room_id, "entries": []}
         payload = []
         for option in options:
+            requests = [
+                PlacementRequest(
+                    item=self.catalog.get(p.item_id),
+                    purpose=p.purpose,
+                    hint=p.hint,
+                    anchor=p.anchor,
+                )
+                for p in option.items
+            ]
+            placed, issues = auto_place(
+                self.project.plan,
+                room_id,
+                requests,
+                self.catalog,
+                existing=kept_other_rooms,
+                max_fill_ratio=MAX_FILL_RATIO,
+            )
+            self.pending_options["entries"].append(
+                {"option": option, "placed": placed, "issues": issues}
+            )
             items = [self._item_payload(p.item_id) for p in option.items]
             payload.append(
                 {
@@ -283,6 +413,9 @@ class Orchestrator:
                     "items": items,
                     "total": sum(i["price"] for i in items),
                     "currency": items[0]["currency"] if items else "",
+                    "svg": self._mini_svg(room_id, placed) if placed else "",
+                    "placed": len(placed),
+                    "requested": len(option.items),
                 }
             )
         lines = [f"I put together {len(options)} options for {room_id} — pick one:"]
@@ -294,27 +427,19 @@ class Orchestrator:
         return {"reply": "\n".join(lines), "options": payload}
 
     def choose_option(self, index: int) -> dict:
-        """Step 2: place the chosen option's items."""
+        """Step 2: place the chosen option's items (reusing the layout previewed in step 1)."""
         if not self.pending_options:
             return {"reply": "no options pending — ask me to furnish a room first"}
-        if not 0 <= index < len(self.pending_options["options"]):
-            return {"reply": f"pick 1-{len(self.pending_options['options'])}"}
+        entries = self.pending_options["entries"]
+        if not 0 <= index < len(entries):
+            return {"reply": f"pick 1-{len(entries)}"}
         room_id = self.pending_options["room"]
-        option = self.pending_options["options"][index]
+        entry = entries[index]
+        option, placed, issues = entry["option"], entry["placed"], entry["issues"]
         self.pending_options = None
 
         self._progress("placing the furniture…")
-        requests = [
-            PlacementRequest(
-                item=self.catalog.get(p.item_id), purpose=p.purpose, hint=p.hint, anchor=p.anchor
-            )
-            for p in option.items
-        ]
         kept_other_rooms = [p for p in self.project.placements if p.room != room_id]
-        placed, issues = auto_place(
-            self.project.plan, room_id, requests, self.catalog, existing=kept_other_rooms
-        )
-
         self.project.snapshot()
         self.project.placements = kept_other_rooms + placed
         self._mutated()
@@ -360,6 +485,10 @@ class Orchestrator:
                 result = {"reply": self.set_budget(intent.budget)}
             elif intent.action == "clear_room" and intent.room_id:
                 result = {"reply": self.clear_room(intent.room_id)}
+            elif intent.action == "add_item":
+                result = self.add_item(intent.target, intent.room_id, intent.note)
+            elif intent.action == "remove_item":
+                result = self.remove_item(intent.target, intent.room_id)
             elif intent.action == "replace_item":
                 result = self.replace_item(intent.target, intent.room_id, intent.note)
             else:

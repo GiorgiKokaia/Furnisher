@@ -10,12 +10,14 @@ import re
 from dataclasses import dataclass
 
 from furnisher.catalog.models import CatalogItem
+from furnisher.layout.rules import ANCHOR_FOR, category, is_underlay, relation_candidates
 from furnisher.layout.validate import LayoutIssue, placement_polygon, validate
 from furnisher.model import FloorPlan, Placement
 from furnisher.model import geometry
 
 WALL_GAP = 0.05
 WALL_STEP = 0.25
+MAX_FILL_RATIO = 0.5  # furniture footprints (rugs excluded) shouldn't cover more than this
 _WALL_LOVERS = (
     "bed",
     "sofa",
@@ -108,23 +110,51 @@ def auto_place(
     requests: list[PlacementRequest],
     catalog,
     existing: list[Placement] | None = None,
+    max_fill_ratio: float | None = None,
 ) -> tuple[list[Placement], list[LayoutIssue]]:
     existing = list(existing or [])
     issues: list[LayoutIssue] = []
     placed: list[Placement] = []
     by_purpose: dict[str, tuple[Placement, CatalogItem]] = {}
 
-    # anchored requests go after their anchors; otherwise big things first
-    unanchored = sorted(
-        (r for r in requests if not r.anchor),
-        key=lambda r: r.item.width_m * r.item.depth_m,
-        reverse=True,
+    # keep the room from being overstuffed: cap the footprint furniture may cover (rugs, being
+    # underlays, don't count and are never capped). Items that would blow the cap are dropped.
+    room_area = plan.room(room_id).area()
+    fill_cap = max_fill_ratio * room_area if max_fill_ratio else None
+    used_area = sum(
+        catalog.get(p.item_ref).width_m * catalog.get(p.item_ref).depth_m
+        for p in existing
+        if p.room == room_id and not is_underlay(catalog.get(p.item_ref))
     )
-    anchored = sorted(
-        (r for r in requests if r.anchor),
-        key=lambda r: r.item.width_m * r.item.depth_m,
-        reverse=True,
-    )
+    # category -> a representative placed item to anchor against, seeded from other rooms' items
+    # already in this room (so "add a nightstand" finds the existing bed)
+    anchor_by_cat: dict[str, tuple[Placement, CatalogItem]] = {}
+    for p in existing:
+        if p.room == room_id:
+            item = catalog.get(p.item_ref)
+            anchor_by_cat.setdefault(category(item), (p, item))
+
+    def anchor_target(request):
+        """The (placement, item) this request should sit next to, explicit or inferred."""
+        if request.anchor and request.anchor in by_purpose:
+            return by_purpose[request.anchor]
+        wanted = ANCHOR_FOR.get(category(request.item))
+        return anchor_by_cat.get(wanted) if wanted else None
+
+    # things that others anchor to must be placed first; anchored/relational go after
+    batch_cats = {category(r.item) for r in requests}
+
+    def is_anchored(request) -> bool:
+        if request.anchor:
+            return True
+        wanted = ANCHOR_FOR.get(category(request.item))
+        return bool(wanted and (wanted in anchor_by_cat or wanted in batch_cats))
+
+    def area(r):
+        return r.item.width_m * r.item.depth_m
+
+    unanchored = sorted((r for r in requests if not is_anchored(r)), key=area, reverse=True)
+    anchored = sorted((r for r in requests if is_anchored(r)), key=area, reverse=True)
     taken_ids = {p.id for p in existing}
 
     for request in unanchored + anchored:
@@ -133,10 +163,24 @@ def auto_place(
             pid += "-2"
         taken_ids.add(pid)
 
+        item_area = request.item.width_m * request.item.depth_m
+        underlay = is_underlay(request.item)
+        if fill_cap is not None and not underlay and used_area + item_area > fill_cap:
+            issues.append(
+                LayoutIssue(
+                    "warning",
+                    f"skipped {request.purpose!r} ({request.item.name}) — {room_id!r} would be "
+                    f"over {round(max_fill_ratio * 100)}% full; leave it out or free up space",
+                    [pid],
+                )
+            )
+            continue
+
+        target = anchor_target(request)
         candidates = []
-        if request.anchor and request.anchor in by_purpose:
-            anchor_placement, anchor_item = by_purpose[request.anchor]
-            candidates.extend(_anchor_candidates(anchor_placement, anchor_item, request.item))
+        if target is not None:
+            candidates.extend(relation_candidates(target[0], target[1], request.item))
+            candidates.extend(_anchor_candidates(target[0], target[1], request.item))
         if request.hint == "center":
             candidates.extend(_center_candidates(plan, room_id))
             candidates.extend(_wall_candidates(plan, room_id, request.item))
@@ -144,7 +188,12 @@ def auto_place(
             candidates.extend(_wall_candidates(plan, room_id, request.item))
             candidates.extend(_center_candidates(plan, room_id))
 
-        other_polys = [placement_polygon(p, catalog.get(p.item_ref)) for p in existing + placed]
+        # distance scoring ignores rugs (furniture sits on them, so distance ~0 isn't "crowding")
+        other_polys = [
+            placement_polygon(p, catalog.get(p.item_ref))
+            for p in existing + placed
+            if not is_underlay(catalog.get(p.item_ref))
+        ]
         best = None
         for index, (center, rotation, kind) in enumerate(candidates):
             trial = Placement(
@@ -162,16 +211,19 @@ def auto_place(
             if any(i.severity == "error" for i in trial_issues):
                 continue
             score = 0.0
-            if kind == "anchor":
+            if kind == "anchor_pref":
+                score += 6.0
+            elif kind == "anchor":
                 score += 4.0
             if kind == "wall" and _is_wall_lover(request.item):
                 score += 2.0
-            if kind == "center" and request.hint == "center":
+            if kind == "center" and (request.hint == "center" or underlay):
                 score += 1.5
             score -= sum(1.0 for i in trial_issues if i.severity == "warning")
-            score += 0.3 * min(
-                _min_distance(placement_polygon(trial, request.item), other_polys), 1.5
-            )
+            if not underlay:
+                score += 0.3 * min(
+                    _min_distance(placement_polygon(trial, request.item), other_polys), 1.5
+                )
             score -= index * 1e-4  # stable tie-break: earlier candidates win
             if best is None or score > best[0]:
                 best = (score, trial)
@@ -188,5 +240,8 @@ def auto_place(
             continue
         placed.append(best[1])
         by_purpose[request.purpose] = (best[1], request.item)
+        anchor_by_cat.setdefault(category(request.item), (best[1], request.item))
+        if not underlay:
+            used_area += item_area
 
     return placed, issues

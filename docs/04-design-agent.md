@@ -39,13 +39,13 @@ the catalog, (c) plain-language suggestions/rationale for the user.
    an optional anchor purpose); the layout engine (05) owns actual coordinates.
 
 3. **Chat turn handler** — free-form conversation; classifies intent into a small closed set
-   (`furnish_room`, `set_budget`, `clear_room`, `replace_item`, `question` — `agent/models.py`
-   `Intent`, prompt `prompts/route.md`) and routes accordingly. `replace_item` carries a
-   free-text `target` (which placed item) + `note` (the requirement, e.g. "cheaper"); the
-   orchestrator matches the target against current placements and calls `propose_replacement`
-   (one grounded catalog item of the same function), then swaps it in — keeping the exact spot
-   if it still validates, otherwise re-placing that single item via `auto_place`.
-   Owned jointly with 08 — the orchestration loop lives there, prompt logic lives here.
+   (`furnish_room`, `set_budget`, `clear_room`, `add_item`, `remove_item`, `replace_item`,
+   `question` — `agent/models.py` `Intent`, prompt `prompts/route.md`) and routes accordingly.
+   The single-item actions carry a free-text `target` (+ `note`) the orchestrator matches
+   against current placements. `add_item`/`replace_item` call one-shot grounded pickers
+   (`propose_addition` / `propose_replacement`, both built on the shared `_pick_one` search
+   loop) and place via `auto_place` among the *existing* furniture, so the rest of the room is
+   untouched. Owned jointly with 08 — the orchestration loop lives there, prompt logic here.
 
 ## Grounding rules (put these in the system prompt)
 

@@ -260,9 +260,11 @@ def describe_apartment_layout(plan: FloorPlan, placements: list[Placement], cata
             f"- {room.label()} ({max(rxs) - min(rxs):.1f}x{max(rys) - min(rys):.1f} m), "
             f"{quad} of the plan{link}."
         )
-    lines.append("Furniture per room (keep each item in its own room):")
+    lines.append(
+        "Furniture per room — render EXACTLY these items in each room and nothing else. "
+        "Rooms marked empty must be shown with no furniture:"
+    )
     for room in ordered:
         items = by_room.get(room.id)
-        if items:
-            lines.append(f"- {room.label()}: {', '.join(items)}.")
+        lines.append(f"- {room.label()}: {', '.join(items) if items else 'EMPTY — no furniture'}.")
     return "\n".join(lines)

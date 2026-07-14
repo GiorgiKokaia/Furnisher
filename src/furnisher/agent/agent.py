@@ -94,6 +94,50 @@ class DesignAgent:
 
         return search_catalog, seen_ids
 
+    def _pick_one(self, system_prompt: str, context_parts: list[str], on_progress=None):
+        """Run the search-tool loop then extract a single grounded catalog item, or None."""
+        search_catalog, seen_ids = self._catalog_search_tool(on_progress)
+        reasoning = self.llm.complete(
+            "\n\n".join(context_parts), system=system_prompt, tools=[search_catalog]
+        )
+        choice = self.llm.complete_structured(
+            "Give the single item id from the text below (it must appear verbatim and come "
+            "from a search_catalog result):\n\n" + reasoning,
+            ProposedItem,
+        )
+        if choice.item_id not in seen_ids:
+            try:
+                self.catalog.get(choice.item_id)
+            except KeyError:
+                log.warning("agent proposed unknown item %r — dropped", choice.item_id)
+                return None
+        return self.catalog.get(choice.item_id)
+
+    def propose_addition(
+        self,
+        plan: FloorPlan,
+        room_id: str,
+        description: str,
+        note: str,
+        budget_remaining: float | None,
+        currency: str,
+        existing_names: list[str],
+        on_progress=None,
+    ) -> CatalogItem | None:
+        """Find one grounded catalog item to add to an already-furnished room, or None."""
+        if on_progress:
+            on_progress(f"finding {description}…")
+        parts = [
+            _room_summary(plan, room_id),
+            f"Already in this room: {', '.join(existing_names) or 'nothing yet'}.",
+            f"Add one item: {description}.",
+        ]
+        if budget_remaining is not None:
+            parts.append(f"Budget left: at most {budget_remaining:.0f} {currency}.")
+        if note:
+            parts.append(f"Preference: {note}")
+        return self._pick_one(_prompt("add"), parts, on_progress)
+
     def propose_replacement(
         self,
         plan: FloorPlan,
@@ -105,7 +149,6 @@ class DesignAgent:
         on_progress=None,
     ) -> CatalogItem | None:
         """Find one grounded catalog item to swap in for `current_item`, or None."""
-        search_catalog, seen_ids = self._catalog_search_tool(on_progress)
         parts = [
             _room_summary(plan, room_id),
             f"Item to replace: {current_item.name} ({current_item.type_name}), footprint "
@@ -117,24 +160,7 @@ class DesignAgent:
         if note:
             parts.append(f"The replacement must be: {note}")
         parts.append("Find the single best replacement now.")
-
-        reasoning = self.llm.complete(
-            "\n\n".join(parts), system=_prompt("replace"), tools=[search_catalog]
-        )
-        if on_progress:
-            on_progress("choosing a replacement…")
-        choice = self.llm.complete_structured(
-            "Give the single replacement item id from the text below (it must appear verbatim "
-            "and come from a search_catalog result):\n\n" + reasoning,
-            ProposedItem,
-        )
-        if choice.item_id not in seen_ids:
-            try:
-                self.catalog.get(choice.item_id)
-            except KeyError:
-                log.warning("agent proposed unknown replacement %r — dropped", choice.item_id)
-                return None
-        return self.catalog.get(choice.item_id)
+        return self._pick_one(_prompt("replace"), parts, on_progress)
 
     def propose_options(
         self,

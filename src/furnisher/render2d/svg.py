@@ -136,7 +136,13 @@ def render_plan(
     if placements:
         if catalog is None:
             raise ValueError("rendering placements requires a catalog for item lookup")
-        for p in placements:
+        from furnisher.layout.rules import is_underlay
+
+        # rugs first so furniture draws on top of them
+        ordered = sorted(
+            placements, key=lambda p: 0 if is_underlay(catalog.get(p.item_ref)) else 1
+        )
+        for p in ordered:
             parts.extend(_render_placement(p, catalog, t, style))
 
     # Labels last, on top of everything. With furniture present, labels move to the room's
@@ -169,6 +175,7 @@ def render_plan(
 
 
 _PLACEMENT_TINTS = [
+    (("rug", "carpet", "runner"), "#e7ddcf"),
     (("bed",), "#e6edf8"),
     (("sofa", "armchair", "loveseat"), "#f8efe2"),
     (("wardrobe", "dresser", "cabinet", "chest", "bookcase", "bookshelf", "shelf"), "#efe9e1"),
@@ -188,24 +195,35 @@ def _placement_fill(item) -> str:
 
 def _render_placement(placement, catalog, t: _Transform, style: RenderStyle) -> list[str]:
     from furnisher.layout import placement_polygon  # shared pose math; no cycle (layout -> model)
+    from furnisher.layout.rules import is_underlay
 
     item = catalog.get(placement.item_ref)
     poly = placement_polygon(placement, item)
     pts = list(poly.exterior.coords)[:4]
-    parts = [
-        # thick round-join stroke fakes soft corners on the rotated rect;
-        # data-pid makes pieces clickable in the web app
-        f'<polygon points="{_points_attr(pts, t)}" fill="{_placement_fill(item)}" '
-        f'fill-opacity="0.94" stroke="#7a6a55" stroke-width="2" stroke-linejoin="round" '
-        f'data-pid="{html.escape(placement.id)}"/>'
-    ]
+    underlay = is_underlay(item)
+    if underlay:
+        # rugs read as a soft dashed area furniture sits on top of; still clickable (data-pid)
+        parts = [
+            f'<polygon points="{_points_attr(pts, t)}" fill="{_placement_fill(item)}" '
+            f'fill-opacity="0.5" stroke="#b39a76" stroke-width="1.4" stroke-dasharray="6 4" '
+            f'stroke-linejoin="round" data-pid="{html.escape(placement.id)}"/>'
+        ]
+    else:
+        parts = [
+            # thick round-join stroke fakes soft corners on the rotated rect;
+            # data-pid makes pieces clickable in the web app
+            f'<polygon points="{_points_attr(pts, t)}" fill="{_placement_fill(item)}" '
+            f'fill-opacity="0.94" stroke="#7a6a55" stroke-width="2" stroke-linejoin="round" '
+            f'data-pid="{html.escape(placement.id)}"/>'
+        ]
     cx, cy = poly.centroid.x, poly.centroid.y
-    # front tick: shows orientation (front = local -y at rotation 0)
-    front = geometry.rotate((0, -1), placement.rotation)
-    d = item.depth_m / 2
-    tick_from = (cx + front[0] * d * 0.45, cy + front[1] * d * 0.45)
-    tick_to = (cx + front[0] * d * 0.95, cy + front[1] * d * 0.95)
-    parts.append(_polyline([tick_from, tick_to], t, "#b0a08a", 1.5))
+    if not underlay:  # rugs have no meaningful "front"
+        # front tick: shows orientation (front = local -y at rotation 0)
+        front = geometry.rotate((0, -1), placement.rotation)
+        d = item.depth_m / 2
+        tick_from = (cx + front[0] * d * 0.45, cy + front[1] * d * 0.45)
+        tick_to = (cx + front[0] * d * 0.95, cy + front[1] * d * 0.95)
+        parts.append(_polyline([tick_from, tick_to], t, "#b0a08a", 1.5))
 
     # labels only where they fit; rotate along tall narrow items; nothing on tiny ones
     min_x, min_y, max_x, max_y = poly.bounds

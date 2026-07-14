@@ -17,7 +17,7 @@ from furnisher.render2d import render_room_crop
 
 log = logging.getLogger(__name__)
 
-RECIPE_VERSION = "v2"  # bumped when the prompt recipe changes so cached images regenerate
+RECIPE_VERSION = "v3"  # bumped when the prompt recipe changes so cached images regenerate
 MAX_PRODUCT_PHOTOS = 5
 
 PROMPT_TEMPLATE = """\
@@ -26,6 +26,9 @@ Generate ONE photorealistic interior photograph of a real room.
 Image 1 is a top-down schematic plan of the room. Numbered rectangles are furniture
 footprints; the short line from each number shows which way that item faces. The camera
 position and direction are marked in red.
+Image 2 is a clean colour top-down of the SAME room — footprints to scale, each with a small
+tick for its facing direction. Images 1-2 and the SPATIAL LAYOUT text are the authoritative
+arrangement; reproduce it, do not reinterpret it.
 {photo_note}
 
 Room: {room_type}, {width:.1f} × {depth:.1f} m, ceiling {ceiling:.1f} m.
@@ -89,6 +92,12 @@ door/window openings, and furniture arrangement faithfully, keeping the plan's p
 
 LAYOUT — ground truth; match it exactly (trust this text over any misread of the schematic):
 {layout}
+
+Fidelity rules — follow exactly:
+- Render ONLY the furniture listed above, each in the room it is listed under. Do NOT add,
+  remove, or substitute any piece, and do NOT invent decor beyond what is listed.
+- Rooms listed as EMPTY must be rendered empty (bare floor) — never fill an empty room.
+- Keep room count, adjacencies, and proportions exactly as the plan and layout text show.
 
 Style: {style}.
 Warm, appealing architectural-visualization look, soft daylight, subtle shadows.
@@ -183,7 +192,8 @@ def generate_room_image(
             paths = catalog.image_paths(placement.item_ref, max_images=1)
             if paths:
                 photos.append(paths[0])
-                photo_lines.append(f"  image {len(photos) + 1} = product photo of item {number}")
+                # images 1-2 are the two schematics; product photos start at image 3
+                photo_lines.append(f"  image {len(photos) + 2} = product photo of item {number}")
 
     xs = [p[0] for p in room.polygon]
     ys = [p[1] for p in room.polygon]
@@ -210,7 +220,25 @@ def generate_room_image(
         feedback=f"- User feedback on the previous attempt: {feedback}" if feedback else "",
     )
 
-    content: list = [prompt, (svg_to_png(svg), "image/png")]
+    # image 2: a clean colour top-down of just this room (footprints to scale + facing ticks)
+    from furnisher.model import FloorPlan
+    from furnisher.render2d import RenderStyle, render_plan
+
+    sub_plan = FloorPlan(
+        name=room.label(),
+        ceiling_height=project.plan.ceiling_height,
+        rooms=[room],
+        openings=[op for op in project.plan.openings if op.room == room_id],
+    )
+    top_svg = render_plan(
+        sub_plan, placements=placements, catalog=catalog, style=RenderStyle(scale=90)
+    )
+
+    content: list = [
+        prompt,
+        (svg_to_png(svg), "image/png"),
+        (svg_to_png(top_svg), "image/png"),
+    ]
     content.extend(photos)
     image = llm.generate_image(content)
 

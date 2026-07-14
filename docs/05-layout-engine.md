@@ -1,9 +1,31 @@
 # 05 — Layout Engine
 
-**Status:** validation v0 + greedy `auto_place()` built (`src/furnisher/layout/`);
-free-space connectivity check still pending
+**Status:** validation v0 + greedy `auto_place()` built (`src/furnisher/layout/`), now with
+design-relationship placement + rug underlays (`layout/rules.py`); free-space connectivity
+check still pending
 **Depends on:** 01 (geometry), 03 (item dimensions)
 **Code home:** `src/furnisher/layout/`
+
+## Design rules (`layout/rules.py`)
+
+Crude keyword categorisation (`category(item)`) drives two behaviours:
+
+- **Anchored relationships** — when the agent didn't pin an anchor, the engine infers one from
+  categories (`ANCHOR_FOR`) and generates *preferred poses* (`relation_candidates`) scored
+  above generic adjacency: nightstands beside the head of the bed, a coffee table / rug in
+  front of the sofa, the desk chair in front of (and facing) the desk, dining chairs around
+  the table. Inference also spans `existing` placements, so "add a nightstand" snaps it to the
+  bed that's already there.
+- **Underlays** (`is_underlay` → rugs/mats): overlaps *with* a rug are legal (furniture sits on
+  it), rugs don't block doors, they're placed centrally/under the seating, and the renderer
+  draws them first (beneath everything) with a soft dashed outline.
+
+`auto_place` also takes a `max_fill_ratio` (orchestrator passes `MAX_FILL_RATIO = 0.5`): the
+combined furniture footprint per room stays under that fraction of the floor area (rugs
+excluded). Items that would blow the cap are **dropped** with a warning rather than crammed in,
+and the proposal/add prompts tell the agent the same ~50% guideline so it proposes a set that
+actually fits. An item the solver can't place without a hard error is likewise left out (never
+placed illegally) — so "can't be placed well" always means "left out of the room", not "forced".
 
 ## Purpose
 

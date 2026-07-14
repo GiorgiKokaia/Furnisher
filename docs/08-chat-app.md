@@ -7,9 +7,15 @@ room-photo gallery, per-room camera buttons, undo, budget header. Web app v2 add
 - **Streaming**: `/api/message` returns NDJSON — `{"progress": ...}` lines (intent routing,
   each catalog search, placement) update the pending bubble live, last line carries the result.
 - **Options**: furnishing is two-step — the agent proposes 2-3 labeled options (RoomOptions),
-  rendered as chat cards with product photos (`referrerPolicy=no-referrer`, IKEA's CDN rejects
-  foreign Referers) and a choose button (`/api/choose`; typing the number works too, also CLI).
-  Nothing is placed until the user picks.
+  rendered as chat cards with a **mini floor-plan preview** + product photos and a choose button
+  (`/api/choose`; typing the number works too, also CLI). Each option is laid out at proposal
+  time (`auto_place`), so the card shows exactly where the pieces land (and "N/M pieces fit" if
+  something couldn't be placed); the layout is stashed in `pending_options` and reused verbatim
+  when the user picks. Nothing is placed until then.
+- **Reliable images**: product photos are served through a cache-backed proxy
+  (`/api/item-image?id=…` → `catalog.image_paths`, which downloads + caches server-side) rather
+  than hotlinking the IKEA CDN from the browser (which failed intermittently). `image_proxy_url`
+  builds the relative URL; the frontend degrades to a text placeholder on any miss (`img.onerror`).
 - **Drag**: pieces drag with live ghost; on drop `/api/placement` applies the world-space
   delta, snaps flush to the nearest wall within 0.3 m (`snap_to_wall`), validates, and
   rejects illegal drops back to their old spot. Click still selects (floating toolbar:
@@ -87,6 +93,8 @@ needs new core logic, that logic was in the wrong place.
 user msg ──→ agent intent routing (04)
    ├─ style change  → re-extract style → mark room images stale
    ├─ furnish room  → agent proposal (04) → auto_place (05) → validate → apply to project (09)
+   ├─ add item      → propose_addition (04) → auto_place among existing (05) → append (09)
+   ├─ remove item   → match placed item → drop it, keep the rest (09)
    ├─ replace item  → match placed item → propose_replacement (04) → keep spot or auto_place →
    │                  validate (05) → swap in project (09)
    ├─ move (UI)     → drag/nudge/rotate → validate (05) → apply or reject (web app toolbar)
@@ -111,6 +119,9 @@ want a smaller one?") — `LayoutIssue` messages are written for exactly this.
       with swappable target/session; new layouts auto-become samples
 - [x] Replace a placed item from chat ("replace the sofa with a cheaper one") or the piece
       popup's ⇄ button — `replace_item` intent → grounded `propose_replacement` → swap
+- [x] Incremental edits from chat that keep the rest of the design: `add_item` ("add a rug")
+      places one grounded item among the existing furniture (anchored by design rules);
+      `remove_item` ("remove the rug") drops one matched piece
 - [ ] Staleness tracking: room-image caching self-invalidates via content hash, but outdated
       images linger in the gallery — mark or prune them
 

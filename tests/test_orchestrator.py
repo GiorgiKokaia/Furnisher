@@ -5,8 +5,9 @@ from pathlib import Path
 import pytest
 
 from furnisher.agent.models import Intent, ProposedItem, RoomOptions, StyleProfile
-from furnisher.app.orchestrator import Orchestrator
+from furnisher.app.orchestrator import Orchestrator, image_proxy_url
 from furnisher.catalog import Catalog
+from furnisher.catalog.models import CatalogItem
 from furnisher.catalog.adapters.generic import GenericProvider
 from furnisher.layout import validate
 from furnisher.model import Placement
@@ -82,7 +83,22 @@ def test_furnish_returns_options_without_placing(orch):
     # invented item was dropped by grounding; essentials has 1 real item
     assert len(result["options"][0]["items"]) == 1
     assert result["options"][1]["items"][1]["name"] == "Dot Nightstand"
+    # each option carries a mini floor-plan preview + how many pieces fit
+    assert result["options"][1]["svg"].startswith("<svg")
+    assert result["options"][1]["placed"] == 2
+    assert result["options"][1]["requested"] == 2
     assert orch.project.placements == []  # nothing placed until the user picks
+
+
+def test_image_proxy_url():
+    def item(image_urls):
+        return CatalogItem(id="ikea:12:34", provider="ikea", name="X", type_name="t",
+                           width_m=1, depth_m=1, height_m=1, price=1, currency="EUR",
+                           image_urls=image_urls)
+
+    # colon-bearing ids are percent-encoded; relative so it resolves under /furnish too
+    assert image_proxy_url(item(["http://x/y.jpg"])) == "api/item-image?id=ikea%3A12%3A34"
+    assert image_proxy_url(item([])) is None
 
 
 def test_choose_option_places_and_persists(orch):
@@ -199,6 +215,63 @@ def test_replace_item_unknown_target_lists_items(furnished):
     assert "couldn't tell which item" in result["reply"]
     assert "Loft Sofa 3" in result["reply"]  # shows what is currently placed
     assert orch.project.placements[0].item_ref == "generic:loft-sofa-3"  # unchanged
+
+
+class AddLLM:
+    """Routes to add_item and proposes a rug via the grounded tool path."""
+
+    def complete(self, content, *, system=None, tools=None):
+        if tools:
+            tools[0]("rug")
+            return "Add generic:weave-rug-m, a mid-size rug."
+        return "chat"
+
+    def complete_structured(self, content, schema, *, system=None):
+        if schema is Intent:
+            return Intent(action="add_item", target="a rug", room_id="living-room")
+        if schema is ProposedItem:
+            return ProposedItem(item_id="generic:weave-rug-m", purpose="rug")
+        raise AssertionError(f"unexpected schema {schema}")
+
+
+def test_add_item_keeps_existing_and_adds_one(tmp_path):
+    project = Project.create(tmp_path / "proj", FIXTURES / "two-bedroom.yaml")
+    project.placements = [
+        Placement(id="sofa", item_ref="generic:loft-sofa-3", room="living-room",
+                  position=(7.5, 1.0), rotation=0),
+    ]
+    project.save()
+    orch = Orchestrator(project, Catalog([GenericProvider()]), AddLLM())
+    result = orch.handle_message("add a rug to the living room")
+    assert "Added Weave Rug" in result["reply"]
+    assert result["placed"][0]["name"].startswith("Weave Rug")
+    refs = {p.item_ref for p in orch.project.placements}
+    assert refs == {"generic:loft-sofa-3", "generic:weave-rug-m"}  # sofa kept, rug added
+
+
+class RemoveLLM:
+    def complete_structured(self, content, schema, *, system=None):
+        if schema is Intent:
+            return Intent(action="remove_item", target="rug", room_id="living-room")
+        raise AssertionError(f"unexpected schema {schema}")
+
+    def complete(self, content, *, system=None, tools=None):
+        return "chat"
+
+
+def test_remove_item(tmp_path):
+    project = Project.create(tmp_path / "proj", FIXTURES / "two-bedroom.yaml")
+    project.placements = [
+        Placement(id="sofa", item_ref="generic:loft-sofa-3", room="living-room",
+                  position=(7.5, 1.0), rotation=0),
+        Placement(id="rug", item_ref="generic:weave-rug-m", room="living-room",
+                  position=(7.5, 1.6), rotation=0),
+    ]
+    project.save()
+    orch = Orchestrator(project, Catalog([GenericProvider()]), RemoveLLM())
+    result = orch.handle_message("remove the rug")
+    assert "Removed Weave Rug" in result["reply"]
+    assert {p.id for p in orch.project.placements} == {"sofa"}
 
 
 def test_inspire_from_ikea(orch, monkeypatch):

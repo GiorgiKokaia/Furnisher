@@ -1,7 +1,8 @@
 # 07 — Room Image Generation
 
-**Status:** M4 built — recipe **v2** (`render3d/recipe.py`): room-crop grounding render +
-product-photo grounding + a **programmatic layout→text spatial brief** (`render3d/describe.py`),
+**Status:** M4 built — recipe **v3** (`render3d/recipe.py`): two schematic grounding images
+(room-crop + clean colour top-down) + product photos + a **programmatic layout→text spatial
+brief** (`render3d/describe.py`) for rooms, and an all-rooms (empty-aware) brief for the apartment,
 content-hash caching, `furnisher render room` CLI, `/room` chat command, 📷 buttons in the web
 app, feedback re-roll, and the whole-apartment isometric cutaway (`generate_apartment_image`,
 🏠 button). Verified live: MALM bed / PAX wardrobe / MALM nightstand rendered recognizably as
@@ -30,9 +31,12 @@ multiple input images + a text prompt and composes them — exactly the mechanis
 Inputs per room:
 
 1. **Room-crop plan render** (06 mode 3): numbered footprints + camera marker.
-2. **Product photos** from cache (03): 1–2 best images per item (prefer straight-on studio shots),
+2. **Clean colour top-down** of the same room (`render_plan` on a one-room sub-plan): footprints
+   to scale with facing ticks — a second, crisper schematic so the model has less room to
+   reinterpret positions (added in v3; product photos then start at image 3).
+3. **Product photos** from cache (03): 1–2 best images per item (prefer straight-on studio shots),
    each preceded in the prompt by its legend number and name.
-3. **Text prompt** built from a template: room type + dimensions, ceiling height, style profile
+4. **Text prompt** built from a template: room type + dimensions, ceiling height, style profile
    (04) for walls/floor/lighting mood, camera description, the instruction that furniture must
    match the reference product images exactly — and, as of v2, a **programmatic spatial brief**
    (`render3d/describe.py`, see below) that the schematic alone couldn't convey.
@@ -53,8 +57,10 @@ plan + placements and fed alongside the image, told to be the ground truth on an
   camera). "Do not rearrange, add, or drop furniture."
 
 `describe_apartment_layout()` does the analogous thing for the 🏠 dollhouse: room quadrant +
-adjacency (from openings) + per-room furniture list, so rooms and their contents don't get
-shuffled or merged.
+adjacency (from openings) + a per-room furniture list that names **every** room — rooms with no
+placements are listed `EMPTY — no furniture`, and the prompt forbids adding/substituting items
+or filling empty rooms. This fixed the dollhouse inventing furniture in unfurnished rooms and
+swapping pieces.
 
 Practical limits: keep total input images modest (≤ ~10) — prioritize the biggest items; small
 decor can be described in text. One generation call per room; a "re-roll with feedback" path

@@ -19,6 +19,7 @@ from shapely.geometry import LineString, Polygon as ShapelyPolygon
 
 from furnisher.catalog.models import CatalogItem
 from furnisher.layout.clearances import front_clearance_m
+from furnisher.layout.rules import is_underlay
 from furnisher.model import DoorSwing, FloorPlan, Opening, OpeningKind, Placement
 from furnisher.model import geometry
 
@@ -126,9 +127,11 @@ def validate(plan: FloorPlan, placements: list[Placement], catalog) -> list[Layo
                 )
             )
 
-    # pairwise overlaps
+    # pairwise overlaps (rugs are underlays — furniture is *meant* to sit on top of them)
     placed = [p for p in placements if p.id in footprints]
     for a, b in combinations(placed, 2):
+        if is_underlay(items[a.id]) or is_underlay(items[b.id]):
+            continue
         inter = footprints[a.id].intersection(footprints[b.id]).area
         if inter > 1e-4:
             issues.append(
@@ -152,6 +155,8 @@ def validate(plan: FloorPlan, placements: list[Placement], catalog) -> list[Layo
             if zone is None:
                 continue
             for p in placed:
+                if is_underlay(items[p.id]):  # a flat rug under a door is fine to walk over
+                    continue
                 if footprints[p.id].intersection(zone).area > 1e-3:
                     issues.append(
                         LayoutIssue(

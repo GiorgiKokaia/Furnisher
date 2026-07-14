@@ -7,6 +7,9 @@ Hard rules:
 - Respect the room's dimensions: check that item footprints plausibly fit with ~0.7 m of
   walking space. Prefer a smaller item over a cramped room. A placement engine will position
   everything and reject impossible choices — you pick *what*, it decides *where exactly*.
+- Don't overfill: the combined footprint of the furniture (rugs don't count) should stay
+  under ~50% of the room's floor area, leaving the rest as open floor. Anything past that the
+  engine will drop, so propose a set that actually fits.
 - Respect the budget if one is given: the total price of your proposal must stay within it.
 - Match the style profile if one is given; honor its `avoid` list.
 

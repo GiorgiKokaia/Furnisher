@@ -41,6 +41,10 @@
     box-shadow: 0 1px 2px rgba(0,0,0,0.07); }
   .optionCard h4 { font-size: 13px; margin-bottom: 2px; }
   .optionCard .total { color: #6b5b46; font-size: 12px; margin-bottom: 6px; }
+  .optionCard .mini { background: #faf8f5; border: 1px solid #eee; border-radius: 8px;
+    padding: 6px; margin-bottom: 8px; text-align: center; }
+  .optionCard .mini svg { max-width: 100%; height: auto; max-height: 180px; }
+  .optionCard .mini .miniNote { font-size: 10px; color: #a06a2c; margin-top: 2px; }
   .optionCard .items { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
   .optionCard .item { width: 84px; font-size: 10px; color: #555; text-align: center; }
   .optionCard .item img, .thumbRow img, .optionCard .noimg {
@@ -171,10 +175,10 @@ function highlightSelected() {
   if (p && p.image) {
     const thumb = document.createElement("img");
     thumb.className = "pieceThumb";
-    thumb.referrerPolicy = "no-referrer";  // IKEA CDN rejects foreign-Referer hotlinks
     thumb.src = p.image;
     thumb.title = "click to enlarge";
     thumb.addEventListener("click", () => showOverlay(p.image));
+    thumb.onerror = () => thumb.remove();
     bar2.append(thumb);
   }
   const name = document.createElement("span");
@@ -355,22 +359,26 @@ function setBusy(value) {
   $("send").disabled = value;
 }
 
+function noImgPlaceholder(text) {
+  const ph = document.createElement("div");
+  ph.className = "noimg";
+  ph.textContent = text;
+  return ph;
+}
+
 function itemThumb(item) {
   const wrap = document.createElement("div");
   wrap.className = "item";
   if (item.image) {
     const img = document.createElement("img");
-    img.referrerPolicy = "no-referrer";  // IKEA's CDN rejects hotlinks with a foreign Referer
     img.src = item.image;
     img.loading = "lazy";
     img.title = `${item.name} — ${item.dims}`;
     img.addEventListener("click", () => showOverlay(item.image));
+    img.onerror = () => img.replaceWith(noImgPlaceholder(item.name));  // proxy miss -> label
     wrap.append(img);
   } else {
-    const ph = document.createElement("div");
-    ph.className = "noimg";
-    ph.textContent = item.name;
-    wrap.append(ph);
+    wrap.append(noImgPlaceholder(item.name));
   }
   const cap = document.createElement("div");
   cap.textContent = `${item.name} · ${Math.round(item.price)} ${item.currency}`;
@@ -395,6 +403,18 @@ function addOptionCards(options) {
     const btn = document.createElement("button");
     btn.textContent = "choose " + option.label;
     buttons.push(btn);
+    let mini = null;
+    if (option.svg) {
+      mini = document.createElement("div");
+      mini.className = "mini";
+      mini.innerHTML = option.svg;
+      if (option.placed < option.requested) {
+        const note = document.createElement("div");
+        note.className = "miniNote";
+        note.textContent = `${option.placed}/${option.requested} pieces fit`;
+        mini.append(note);
+      }
+    }
     btn.addEventListener("click", async () => {
       if (busy) return;
       buttons.forEach(b => b.disabled = true);
@@ -411,7 +431,9 @@ function addOptionCards(options) {
       } catch (exc) { pending.remove(); addMsg("assistant", "error: " + exc); }
       setBusy(false);
     });
-    card.append(h, total, items, btn);
+    card.append(h, total);
+    if (mini) card.append(mini);
+    card.append(items, btn);
     $("chat").append(card);
   });
   $("chat").scrollTop = $("chat").scrollHeight;
@@ -422,10 +444,10 @@ function addThumbRow(items) {
   row.className = "thumbRow";
   items.filter(i => i.image).forEach(item => {
     const img = document.createElement("img");
-    img.referrerPolicy = "no-referrer";
     img.src = item.image;
     img.title = item.name;
     img.addEventListener("click", () => showOverlay(item.image));
+    img.onerror = () => img.remove();  // drop a broken thumb rather than show a broken icon
     row.append(img);
   });
   if (row.children.length) {
@@ -442,6 +464,7 @@ function addImageRow(urls) {
     const img = document.createElement("img");
     img.src = url;
     img.loading = "lazy";
+    img.onerror = () => img.remove();
     img.addEventListener("click", () => showOverlay(url));
     row.append(img);
   });
