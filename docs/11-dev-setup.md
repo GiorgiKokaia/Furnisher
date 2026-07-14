@@ -45,6 +45,22 @@ experiments/    # gitignored scratch (esp. room-render iterations, 07)
   nowhere else.
 - `.gitignore` from day one: `.env`, `experiments/`, `__pycache__/`, `*.egg-info`, `.venv/`.
 
+## Shipping a build to a non-technical person (`packaging/`)
+
+`uv run --with pyinstaller python packaging/build_exe.py` produces a single
+`dist/Furnisher.exe` (~46 MB, Windows-only — PyInstaller cannot cross-build, so a Mac
+recipient needs a hosted instance instead). `furnisher/desktop.py` is the frozen entry point:
+it re-answers the three things the CLI takes for granted — workspace goes to
+`%LOCALAPPDATA%\Furnisher\workspace` (CWD is wherever Explorer launched from), the port falls
+back to a free one if 8380 is taken, and failures print and wait rather than flashing a window
+shut. Ship `dist/READ ME FIRST.txt` alongside it: an unsigned exe trips SmartScreen, and a
+non-technical recipient who doesn't know to click "More info" → "Run anyway" is simply stuck.
+
+**The embedded key is not a secret.** The build injects `GEMINI_API_KEY` via a generated
+runtime hook (gitignored, deleted after the build), so it never enters a tracked file — but it
+is trivially extractable from the .exe. Anything shipped this way should be a dedicated,
+spend-capped, revocable key; treat a shipped key as published.
+
 ## Conventions
 
 - Every LLM/API-touching test runs against **recorded fixtures**; network access in tests is a

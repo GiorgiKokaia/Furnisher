@@ -7,3 +7,6 @@ __pycache__/
 experiments/
 tests/fixtures/*.svg
 workspace/
+dist/
+build/
+packaging/_key_hook.py
