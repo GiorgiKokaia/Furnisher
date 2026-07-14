@@ -87,7 +87,9 @@ needs new core logic, that logic was in the wrong place.
 user msg ──→ agent intent routing (04)
    ├─ style change  → re-extract style → mark room images stale
    ├─ furnish room  → agent proposal (04) → auto_place (05) → validate → apply to project (09)
-   ├─ move/swap     → mutate placements → validate (05) → apply or report issues
+   ├─ replace item  → match placed item → propose_replacement (04) → keep spot or auto_place →
+   │                  validate (05) → swap in project (09)
+   ├─ move (UI)     → drag/nudge/rotate → validate (05) → apply or reject (web app toolbar)
    ├─ render        → 06 / 07
    └─ question      → answer from project state
 after every mutation: snapshot (09), re-render plan SVG
@@ -107,6 +109,8 @@ want a smaller one?") — `LayoutIssue` messages are written for exactly this.
 - [x] Unified launcher (`furnisher start`, `hub/`): workspace of layout samples + per-layout
       furnish projects, home page with thumbnails, editor/furnish mounted under one server
       with swappable target/session; new layouts auto-become samples
+- [x] Replace a placed item from chat ("replace the sofa with a cheaper one") or the piece
+      popup's ⇄ button — `replace_item` intent → grounded `propose_replacement` → swap
 - [ ] Staleness tracking: room-image caching self-invalidates via content hash, but outdated
       images linger in the gallery — mark or prune them
 

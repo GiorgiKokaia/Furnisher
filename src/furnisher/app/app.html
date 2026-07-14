@@ -186,6 +186,7 @@ function highlightSelected() {
     ["←", () => movePiece(-0.1, 0)], ["→", () => movePiece(0.1, 0)],
     ["↑", () => movePiece(0, 0.1)], ["↓", () => movePiece(0, -0.1)],
     ["⟳", () => pieceAction({action: "rotate"})],
+    ["⇄ replace", () => replaceSelected()],
     ["🗑", () => pieceAction({action: "delete"})],
     ["✕", () => selectPiece(null)],
   ];
@@ -208,6 +209,16 @@ function selectPiece(pid) {
 }
 
 function movePiece(dx, dy) { pieceAction({action: "move", dx, dy}); }
+
+function replaceSelected() {
+  if (!selectedPid || busy) return;
+  const p = placements.find(pl => pl.id === selectedPid);
+  const label = p ? p.item : selectedPid;
+  const how = prompt(`Replace “${label}” with… (e.g. a cheaper one, darker wood, smaller)`);
+  if (how === null) return;
+  selectPiece(null);
+  sendText(`replace the ${label}` + (how.trim() ? ` with ${how.trim()}` : ""));
+}
 
 async function pieceAction(payload) {
   if (!selectedPid || busy) return;
@@ -438,6 +449,12 @@ function addImageRow(urls) {
     $("chat").append(row);
     $("chat").scrollTop = $("chat").scrollHeight;
   }
+}
+
+function sendText(text) {  // programmatic send (e.g. the piece "replace" button)
+  if (busy || !text) return;
+  $("input").value = text;
+  send();
 }
 
 async function send() {

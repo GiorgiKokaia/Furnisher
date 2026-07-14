@@ -38,7 +38,8 @@ class RoomOptions(BaseModel):
 
 
 class Intent(BaseModel):
-    action: Literal["furnish_room", "set_budget", "clear_room", "question"]
+    action: Literal["furnish_room", "set_budget", "clear_room", "replace_item", "question"]
     room_id: str | None = None  # exact id from the plan's room list
     budget: float | None = None
-    note: str = ""  # extra constraints the user stated ("no wardrobe", "dark wood")
+    target: str = ""  # replace_item: which placed item to swap ("the sofa", "coffee table")
+    note: str = ""  # extra constraints the user stated ("no wardrobe", "dark wood", "cheaper")

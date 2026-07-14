@@ -4,11 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from furnisher.agent.models import Intent, RoomOptions, StyleProfile
+from furnisher.agent.models import Intent, ProposedItem, RoomOptions, StyleProfile
 from furnisher.app.orchestrator import Orchestrator
 from furnisher.catalog import Catalog
 from furnisher.catalog.adapters.generic import GenericProvider
 from furnisher.layout import validate
+from furnisher.model import Placement
 from furnisher.project import Project
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -139,6 +140,65 @@ def test_progress_callback(orch):
     orch.handle_message("furnish the first bedroom please")
     assert any("designing options" in m for m in seen)
     assert any("searching catalog" in m for m in seen)
+
+
+class ReplaceLLM:
+    """Routes to replace_item and proposes a cheaper sofa via the (grounded) tool path."""
+
+    def __init__(self, replacement_id="generic:loft-sofa-2"):
+        self.replacement_id = replacement_id
+
+    def complete(self, content, *, system=None, tools=None):
+        if tools:
+            tools[0]("sofa")  # populate the grounding set with real ids
+            return f"Best replacement: {self.replacement_id}, cheaper 2-seat sofa."
+        return "canned chat reply"
+
+    def complete_structured(self, content, schema, *, system=None):
+        if schema is Intent:
+            return Intent(action="replace_item", target="sofa", note="cheaper")
+        if schema is ProposedItem:
+            return ProposedItem(item_id=self.replacement_id, purpose="sofa")
+        raise AssertionError(f"unexpected schema {schema}")
+
+
+@pytest.fixture
+def furnished(tmp_path):
+    project = Project.create(tmp_path / "proj", FIXTURES / "two-bedroom.yaml")
+    project.placements = [
+        Placement(id="sofa", item_ref="generic:loft-sofa-3", room="living-room",
+                  position=(7.0, 0.6), rotation=0),
+    ]
+    project.save()
+    return project
+
+
+def test_replace_item_swaps_and_keeps_spot(furnished):
+    orch = Orchestrator(furnished, Catalog([GenericProvider()]), ReplaceLLM())
+    result = orch.handle_message("replace the sofa with a cheaper one")
+    assert "Replaced" in result["reply"]
+    assert result["placed"][0]["name"] == "Loft Sofa 2"
+    # exactly one placement, now the replacement, id preserved
+    assert len(orch.project.placements) == 1
+    swapped = orch.project.placements[0]
+    assert swapped.id == "sofa"
+    assert swapped.item_ref == "generic:loft-sofa-2"
+    # persisted + still valid
+    assert Project.load(orch.project.path).placements[0].item_ref == "generic:loft-sofa-2"
+    errors = [
+        i
+        for i in validate(orch.project.plan, orch.project.placements, orch.catalog)
+        if i.severity == "error"
+    ]
+    assert errors == []
+
+
+def test_replace_item_unknown_target_lists_items(furnished):
+    orch = Orchestrator(furnished, Catalog([GenericProvider()]), ReplaceLLM())
+    result = orch.replace_item("nonexistent widget", None, "")
+    assert "couldn't tell which item" in result["reply"]
+    assert "Loft Sofa 3" in result["reply"]  # shows what is currently placed
+    assert orch.project.placements[0].item_ref == "generic:loft-sofa-3"  # unchanged
 
 
 def test_inspire_from_ikea(orch, monkeypatch):

@@ -17,6 +17,7 @@ from furnisher.agent.models import (
     StyleProfile,
 )
 from furnisher.catalog import Catalog, SearchFilters
+from furnisher.catalog.models import CatalogItem
 from furnisher.model import FloorPlan
 
 log = logging.getLogger(__name__)
@@ -59,21 +60,14 @@ class DesignAgent:
         content = f"Rooms in the plan: {rooms}\n\nUser message: {message}"
         return self.llm.complete_structured(content, Intent, system=_prompt("route"))
 
-    def propose_options(
-        self,
-        plan: FloorPlan,
-        room_id: str,
-        style: StyleProfile | None,
-        budget_remaining: float | None,
-        currency: str,
-        note: str = "",
-        on_progress=None,
-    ) -> tuple[list[RoomOption], str]:
-        """Returns (2-3 grounded furnishing options, the agent's free-text reasoning)."""
+    def _catalog_search_tool(self, on_progress=None):
+        """A `search_catalog` tool bound to this catalog, plus the set of ids it has returned
+        (for grounding enforcement). Shared by proposals and replacements.
+
+        NB: keep the closure's signature free of `X | None` unions and simple-typed — google-
+        genai's automatic function calling chokes on unions when validating arguments."""
         seen_ids: set[str] = set()
 
-        # NB: keep the signature free of `X | None` unions — google-genai's automatic
-        # function calling chokes on them when validating arguments at call time.
         def search_catalog(query: str, max_price: float = 0) -> list[dict]:
             """Search real furniture. Returns id, name, type, width/depth/height in meters,
             and price. Propose only ids returned by this tool. Pass max_price=0 for no
@@ -97,6 +91,63 @@ class DesignAgent:
                 }
                 for i in results
             ]
+
+        return search_catalog, seen_ids
+
+    def propose_replacement(
+        self,
+        plan: FloorPlan,
+        room_id: str,
+        current_item: CatalogItem,
+        note: str,
+        budget_remaining: float | None,
+        currency: str,
+        on_progress=None,
+    ) -> CatalogItem | None:
+        """Find one grounded catalog item to swap in for `current_item`, or None."""
+        search_catalog, seen_ids = self._catalog_search_tool(on_progress)
+        parts = [
+            _room_summary(plan, room_id),
+            f"Item to replace: {current_item.name} ({current_item.type_name}), footprint "
+            f"{current_item.width_m:.2f}×{current_item.depth_m:.2f} m, "
+            f"{current_item.height_m:.2f} m tall, {current_item.price:.0f} {current_item.currency}.",
+        ]
+        if budget_remaining is not None:
+            parts.append(f"Budget for the replacement: at most {budget_remaining:.0f} {currency}.")
+        if note:
+            parts.append(f"The replacement must be: {note}")
+        parts.append("Find the single best replacement now.")
+
+        reasoning = self.llm.complete(
+            "\n\n".join(parts), system=_prompt("replace"), tools=[search_catalog]
+        )
+        if on_progress:
+            on_progress("choosing a replacement…")
+        choice = self.llm.complete_structured(
+            "Give the single replacement item id from the text below (it must appear verbatim "
+            "and come from a search_catalog result):\n\n" + reasoning,
+            ProposedItem,
+        )
+        if choice.item_id not in seen_ids:
+            try:
+                self.catalog.get(choice.item_id)
+            except KeyError:
+                log.warning("agent proposed unknown replacement %r — dropped", choice.item_id)
+                return None
+        return self.catalog.get(choice.item_id)
+
+    def propose_options(
+        self,
+        plan: FloorPlan,
+        room_id: str,
+        style: StyleProfile | None,
+        budget_remaining: float | None,
+        currency: str,
+        note: str = "",
+        on_progress=None,
+    ) -> tuple[list[RoomOption], str]:
+        """Returns (2-3 grounded furnishing options, the agent's free-text reasoning)."""
+        search_catalog, seen_ids = self._catalog_search_tool(on_progress)
 
         parts = [_room_summary(plan, room_id)]
         if style is not None:
