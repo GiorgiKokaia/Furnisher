@@ -14,9 +14,11 @@ on:
 
 jobs:
   build:
-    # Intel runner on purpose: an x86_64 build runs on Intel Macs natively and on Apple
-    # Silicon through Rosetta, so a single file works for whoever you send it to.
-    runs-on: macos-13
+    # Apple Silicon runner. The Intel (macos-13) runners are being retired and jobs pinned to
+    # them now sit queued indefinitely, so we build arm64 here instead. Covers every Mac from
+    # ~late 2020 on (all Apple Silicon). It will NOT run on an old Intel Mac — if the recipient
+    # has one, switch this back to `macos-13` (slow queue) or add it as a second job.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
