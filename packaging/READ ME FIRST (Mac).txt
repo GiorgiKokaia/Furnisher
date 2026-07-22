@@ -1,0 +1,74 @@
+FURNISHER — how to open it on a Mac
+===================================
+
+What this is: a little program that helps you furnish an apartment. You pick or
+draw a floor plan, then just tell it what you want in plain words ("furnish the
+bedroom, cosy, budget 1500") and it fills the rooms with real furniture that
+actually fits, and shows you photos of how it would look.
+
+You need: a Mac and an internet connection. There is nothing to install.
+
+
+STEP 1 — Unzip
+--------------
+Double-click the zip you received. You'll get two files, including
+"Furnisher.command". Drag them onto your Desktop so they're easy to find.
+
+
+STEP 2 — The important bit: the FIRST time, don't double-click. Right-click.
+---------------------------------------------------------------------------
+Macs block programs that didn't come from the App Store, and if you just
+double-click you'll get a dead-end message like "Apple could not verify...".
+To get around it the first time:
+
+   1. RIGHT-click (or hold Control and click) "Furnisher.command"
+   2. Choose "Open" from the little menu
+   3. A warning appears — this time it has an "Open" button. Click it.
+
+You only have to do this once. After that you can open it normally.
+
+
+STEP 3 — Wait about 20 seconds
+------------------------------
+A Terminal window with text in it will appear. Ignore what it says, but LEAVE
+IT OPEN — that window IS the program. Closing it turns the program off.
+
+Your web browser should open by itself with Furnisher in it. If it doesn't,
+look in the Terminal window for a line like:
+
+   http://127.0.0.1:8380
+
+and type that into your browser yourself.
+
+
+STEP 4 — Use it
+---------------
+- "Start from scratch" is the quickest way in: pick a room type and go.
+- Or pick one of the ready-made apartments and hit "Furnish".
+- Then type what you want in the chat box on the right, for example:
+    set a budget of 1500
+    furnish the bedroom, scandinavian, cosy
+- It offers you a few options — click the one you like and it places the
+  furniture on the plan.
+- Click a piece of furniture to see what it is, move it, or swap it.
+- The camera buttons make photos of the finished room.
+
+
+WHEN YOU'RE DONE
+----------------
+Close the Terminal window. Everything you made is saved and will still be
+there next time you open it.
+
+
+IF STEP 2 STILL WON'T LET IT OPEN
+---------------------------------
+Some newer Macs are extra strict. If right-click -> Open still dead-ends:
+
+   1. Open the "Terminal" app (press Cmd+Space, type Terminal, hit Enter)
+   2. Type this exactly, then drag "Furnisher.command" onto the window and
+      press Enter:
+         xattr -cr
+      (there should be a space after -cr, then the file you dragged)
+   3. Now double-click Furnisher.command normally.
+
+Still stuck? Take a screenshot of whatever you see and send it to Giorgi.

@@ -1,0 +1,49 @@
+# Builds the double-clickable Mac version of Furnisher.
+#
+# We can't cross-build a Mac binary from a Windows dev machine, so this runs the same
+# packaging/build_exe.py on a real Mac that GitHub provides, and hands back a downloadable zip.
+#
+# One-time setup: repo Settings -> Secrets and variables -> Actions -> New repository secret
+#   Name: GEMINI_API_KEY   Value: the (dedicated, capped, revocable) key to embed in the build.
+# Then: Actions tab -> "Build macOS app" -> Run workflow. When it finishes, download the
+# "Furnisher-mac" artifact from that run — that zip is what you send.
+name: Build macOS app
+
+on:
+  workflow_dispatch: {}   # run it by hand from the Actions tab
+
+jobs:
+  build:
+    # Intel runner on purpose: an x86_64 build runs on Intel Macs natively and on Apple
+    # Silicon through Rosetta, so a single file works for whoever you send it to.
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Provision Python
+        run: uv python install 3.12
+
+      - name: Build the Mac binary
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: uv run --with pyinstaller python packaging/build_exe.py
+
+      - name: Wrap it for a non-technical recipient
+        run: |
+          cd dist
+          # .command so Finder double-click opens it in Terminal (the Mac analog of the
+          # console window); the executable bit must survive into the zip.
+          mv Furnisher "Furnisher.command"
+          chmod +x "Furnisher.command"
+          cp "../packaging/READ ME FIRST (Mac).txt" "READ ME FIRST.txt"
+          zip -y "Furnisher-mac.zip" "Furnisher.command" "READ ME FIRST.txt"
+
+      - name: Upload the shareable zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: Furnisher-mac
+          path: dist/Furnisher-mac.zip
+          if-no-files-found: error

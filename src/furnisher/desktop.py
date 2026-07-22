@@ -61,7 +61,7 @@ def main() -> None:
     print("\n  Furnisher\n")
     print("  Starting up — your browser will open in a moment.")
     print(f"  If it doesn't, open this address yourself:  {url}")
-    print("\n  Keep this black window open while you use it.")
+    print("\n  Keep this window open while you use it.")
     print("  Closing it stops the program.\n")
 
     try:
